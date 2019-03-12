@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.27"
+#define VERSION       "1.28"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -489,8 +489,8 @@ void loop() {
             content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
             content.values.val2 = ntohs(content.values.val2);
 
-            if( content.values.val1 > 130 || content.values.val1 < 1 ||
-                content.values.val2 > 130 || content.values.val1 < 1 )
+            if( !( content.values.val1 > 130 || content.values.val1 < 1 ||
+                   content.values.val2 > 130 || content.values.val1 < 1 )  )
             {
         
                 // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
