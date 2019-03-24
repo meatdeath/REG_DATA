@@ -3,11 +3,11 @@
  * :Author: Vladimir Novac
  * :Email: vladimir.novac.1980@gmail.com
  * :Date created: 26/12/2018
- * :Modified Date: 29/01/2019
+ * :Modified Date: 24/03/2019
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.28"
+#define VERSION       "1.29"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -489,8 +489,8 @@ void loop() {
             content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
             content.values.val2 = ntohs(content.values.val2);
 
-            if( !( content.values.val1 > 130 || content.values.val1 < 1 ||
-                   content.values.val2 > 130 || content.values.val1 < 1 )  )
+            if( !( content.values.val1 > 200 || content.values.val1 < 1 ||
+                   content.values.val2 > 200 || content.values.val1 < 1 )  )
             {
         
                 // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
