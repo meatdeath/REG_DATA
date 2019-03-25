@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.30"
+#define VERSION       "1.31"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -19,6 +19,7 @@
 #include <TimerOne.h>
 #include <TM1637Display.h>
 // #include <EEPROM.h>
+#include <ArduinoJson.h>
 
 // Подключаем файлы скетча
 #include "buttons.h"
@@ -131,10 +132,43 @@ TM1637Display display(DISPLAY_CLK, DISPLAY_DIO);
 
 char log_str[50];
 
+struct config_st {
+  uint16_t v1Min;
+  uint16_t v1Max;
+  uint16_t v2Min;
+  uint16_t v2Max;
+};
+
+const char *configFilename = "/config.txt";  // <- SD library uses 8.3 filenames
+config_st config;                         // <- global configuration object
 
 //----------------------------------------------------------------------------------------------------
 // Вспомогательные функции
 //----------------------------------------------------------------------------------------------------
+// Loads the configuration from a file
+void loadConfiguration(const char *filename, config_st &config) {
+  // Open file for reading
+  File file = SD.open(filename);
+
+  // Allocate a temporary JsonDocument
+  // Don't forget to change the capacity to match your requirements.
+  // Use arduinojson.org/v6/assistant to compute the capacity.
+  StaticJsonDocument<256> doc;
+
+  // Deserialize the JSON document
+  DeserializationError error = deserializeJson(doc, file);
+  if (error)
+    Serial.println(F("Failed to read file, using default configuration"));
+
+  // Copy values from the JsonDocument to the Config
+  config.v1Max = doc["v1Max"] | 0xFFFF;
+  config.v1Min = doc["v1Min"] | 0;
+  config.v2Max = doc["v2Max"] | 0xFFFF;
+  config.v2Min = doc["v2Min"] | 0;
+
+  // Close the file (Curiously, File's destructor doesn't close the file)
+  file.close();
+}
 
 // Настройка таймера для моргания в режиме установки времени
 void blink_timer_start( void ) {
@@ -356,6 +390,9 @@ void setup() {
 //    Serial.print("  data: 0x");
 //    Serial.print(eeprom_item.data.file_number,HEX);
 //    Serial.println();
+
+    // Загрузка конфигурации с SD карты
+    loadConfiguration(configFilename, config);
     
     // Инициализация окончена
     Serial.println( "Initialization DONE." );
@@ -489,8 +526,10 @@ void loop() {
             content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
             content.values.val2 = ntohs(content.values.val2);
 
-//            if( !( content.values.val1 > 130 || content.values.val1 < 1 ||
-//                   content.values.val2 > 130 || content.values.val2 < 1 )  )
+            if( !( content.values.val1 > config.v1Max || 
+                   content.values.val1 < config.v1Min ||
+                   content.values.val2 > config.v2Max || 
+                   content.values.val2 < config.v2Min )  )
             {
         
                 // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
