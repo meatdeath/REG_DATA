@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.31"
+#define VERSION       "1.32"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -705,18 +705,24 @@ void loop() {
         } else if ( button_change && !button_set ) {
             // Serial.print("CHANGE pressed.\n");
             float ft = Clock.getTemperature();
-            uint16_t temperature = ft;
+            int16_t temperature = ft;
             // sprintf( log_str, "Temperature: %ud C\n", temperature );
             // Serial.print( log_str );
-//            uint8_t seg[4] = { 0, 0, 0, display.encodeDigit(0xC) };
-//            uint8_t pos = 2;
-//            seg[pos--] = display.encodeDigit(temperature%10); 
-//            if( temperature < -9 || temperature > 9 )
-//                seg[pos--] = display.encodeDigit(temperature/10);
-//            if( temperature < 0 )
-//                seg[pos] = SEG_MINUS;
-            display.showNumberDecEx(temperature, 0, true, 4, 0);
-            delay(2000);
+            uint8_t t_seg[4] = { 0, 0, 0, display.encodeDigit(0xC) };
+            if( temperature < 0 ) {
+                temperature = -temperature;
+                if( temperature < 10 )
+                    t_seg[1] = SEG_MINUS;
+                else
+                    t_seg[0] = SEG_MINUS;
+            }
+            t_seg[2] = display.encodeDigit(temperature%10); 
+            if( temperature >= 10 )
+                t_seg[1] = display.encodeDigit(temperature/10);
+            display.setSegments(t_seg);
+
+            //display.showNumberDecEx(temperature, 0, true, 4, 0);
+            delay(3000);
         }
     }
 }
