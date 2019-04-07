@@ -3,11 +3,11 @@
  * :Author: Vladimir Novac
  * :Email: vladimir.novac.1980@gmail.com
  * :Date created: 26/12/2018
- * :Modified Date: 24/03/2019
+ * :Modified Date: 07/04/2019
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.32"
+#define VERSION       "1.33"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -133,6 +133,7 @@ TM1637Display display(DISPLAY_CLK, DISPLAY_DIO);
 char log_str[50];
 
 struct config_st {
+  char regMode;
   uint16_t v1Min;
   uint16_t v1Max;
   uint16_t v2Min;
@@ -161,6 +162,16 @@ void loadConfiguration(const char *filename, config_st &config) {
     Serial.println(F("Failed to read file, using default configuration"));
 
   // Copy values from the JsonDocument to the Config
+  const char* regMode = doc["regMode"];
+  config.regMode = 'R';
+  if( regMode[1] == 0 ) {
+    if( regMode[0] == 'I' || regMode[0] == 'i' ) {
+      config.regMode = 'I';
+    }
+//    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
+//      config.regMode = 'R';
+//    } 
+  } 
   config.v1Max = doc["v1Max"] | 0xFFFF;
   config.v1Min = doc["v1Min"] | 0;
   config.v2Max = doc["v2Max"] | 0xFFFF;
@@ -518,99 +529,146 @@ void loop() {
         return;
     }
 
-    uint8_t read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+    uint8_t read_len = 0;
+    if( config.regMode == 'R' ) {
+      read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
   
-    if( read_len ) {                                        // Если что-то считали из порта
-        content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
-        if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
-            content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
-            content.values.val2 = ntohs(content.values.val2);
-
-            if( !( content.values.val1 > config.v1Max || 
-                   content.values.val1 < config.v1Min ||
-                   content.values.val2 > config.v2Max || 
-                   content.values.val2 < config.v2Min )  )
-            {
-        
-                // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
-                // Serial.print( log_str );
-      
-                if( sd_rec_enable ) {              // Если разрешена запись на SD карту
-                    led_on(LED_WR);
-                    led_wr_timer = 5;
-                    // Serial.println("Pause before saving data to SD...");
-                    // delay(2000);                                    // Задержка в 2 сек для защиты от помех при выключении
-                    // Serial.println( "Recording activated" );
-                    DateTime now = DateTime( unix_time );
-                    //if( new_file ) {
-    //                if( eeprom_item.raw == 0xFFFFFFFF )
-    //                {
-    //                    for ( i = 0; i < 10000; i++ ) {
-    //                        // Генерируем имя файла в виде "reg_XXXX.csv", где XXXX=i
-    //                        sprintf( filename, "reg_%04d.csv", i );
-    //                        if ( !SD.exists(filename) ) {
-    //                            // Файл с таким именем еще не существует, используем его
-    //                            break;
-    //                        }
-    //                    }
-    //                    if ( i == 10000 ) {
-    //                        // Нет свободных имен файлов
-    //                        // Serial.println("Error! No more file names! Please remove files from SD card.");
-    //                        // Виснем моргая светодиодом c периодом 1сек
-    //                        while (1) {
-    //                            for ( i = 0; i < 3 ; i++ ) {
-    //                                led_on(LED_REC);
-    //                                delay(500);
-    //                                led_off(LED_REC);
-    //                                delay(500);
-    //                            }
-    //                            delay(2000);
-    //                        }
-    //                    }
-    //                    Serial.print( "Store recording info at address: 0x" );
-    //                    Serial.print( eeprom_item_address, HEX );
-    //                    Serial.println();
-    //                    eeprom_item.data.file_number = i;
-    //                    eeprom_item.data.valid = 0xFF;
-    //                    eeprom_item.data.checksum = (i>>8) + (i&0xFF) + 0xFF;
-    //                    EEPROM.put( eeprom_item_address, eeprom_item.raw );
-    //                } 
-    //                
-    //                sprintf( filename, "reg_%04d.csv", eeprom_item.data.file_number );
-                    File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-                    if( myFile ) 
-                    {
-    //                    if( eeprom_item.raw == 0xFFFFFFFF ) 
-    //                    {
-    //                        myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" );
-    //                    }
-                        // new_file = false;
-                        
-                        // Сохраняем данные в файл
-                        sprintf( 
-                            log_str, 
-                            "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
-                            unix_time,
-                            now.year(), now.month(), now.day(),
-                            now.hour(), now.minute(), now.second(),
-                            content.values.val1, content.values.val2
-                        );
-                        myFile.print( log_str );
-                        
-                        myFile.close();   // Закрываем файл
+      if( read_len ) {                                        // Если что-то считали из порта
+          content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
+          if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
+              content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
+              content.values.val2 = ntohs(content.values.val2);
+  
+              if( !( content.values.val1 > config.v1Max || 
+                     content.values.val1 < config.v1Min ||
+                     content.values.val2 > config.v2Max || 
+                     content.values.val2 < config.v2Min )  )
+              {
           
-                    } else {
-                        //Serial.print( "Error! Can't open file!\n" );
-                    }
-                    led_off(LED_WR);
-                } else {
-                    //Serial.print( "Recording is not active. Data SKIPPED!\n" );
-                }
+                  // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
+                  // Serial.print( log_str );
+        
+                  if( sd_rec_enable ) {              // Если разрешена запись на SD карту
+                      led_on(LED_WR);
+                      led_wr_timer = 5;
+                      // Serial.println("Pause before saving data to SD...");
+                      // delay(2000);                                    // Задержка в 2 сек для защиты от помех при выключении
+                      // Serial.println( "Recording activated" );
+                      DateTime now = DateTime( unix_time );
+                      //if( new_file ) {
+      //                if( eeprom_item.raw == 0xFFFFFFFF )
+      //                {
+      //                    for ( i = 0; i < 10000; i++ ) {
+      //                        // Генерируем имя файла в виде "reg_XXXX.csv", где XXXX=i
+      //                        sprintf( filename, "reg_%04d.csv", i );
+      //                        if ( !SD.exists(filename) ) {
+      //                            // Файл с таким именем еще не существует, используем его
+      //                            break;
+      //                        }
+      //                    }
+      //                    if ( i == 10000 ) {
+      //                        // Нет свободных имен файлов
+      //                        // Serial.println("Error! No more file names! Please remove files from SD card.");
+      //                        // Виснем моргая светодиодом c периодом 1сек
+      //                        while (1) {
+      //                            for ( i = 0; i < 3 ; i++ ) {
+      //                                led_on(LED_REC);
+      //                                delay(500);
+      //                                led_off(LED_REC);
+      //                                delay(500);
+      //                            }
+      //                            delay(2000);
+      //                        }
+      //                    }
+      //                    Serial.print( "Store recording info at address: 0x" );
+      //                    Serial.print( eeprom_item_address, HEX );
+      //                    Serial.println();
+      //                    eeprom_item.data.file_number = i;
+      //                    eeprom_item.data.valid = 0xFF;
+      //                    eeprom_item.data.checksum = (i>>8) + (i&0xFF) + 0xFF;
+      //                    EEPROM.put( eeprom_item_address, eeprom_item.raw );
+      //                } 
+      //                
+      //                sprintf( filename, "reg_%04d.csv", eeprom_item.data.file_number );
+                      File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+                      if( myFile ) 
+                      {
+      //                    if( eeprom_item.raw == 0xFFFFFFFF ) 
+      //                    {
+      //                        myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" );
+      //                    }
+                          // new_file = false;
+                          
+                          // Сохраняем данные в файл
+                          sprintf( 
+                              log_str, 
+                              "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
+                              unix_time,
+                              now.year(), now.month(), now.day(),
+                              now.hour(), now.minute(), now.second(),
+                              content.values.val1, content.values.val2
+                          );
+                          myFile.print( log_str );
+                          
+                          myFile.close();   // Закрываем файл
+            
+                      } else {
+                          //Serial.print( "Error! Can't open file!\n" );
+                      }
+                      led_off(LED_WR);
+                  } else {
+                      //Serial.print( "Recording is not active. Data SKIPPED!\n" );
+                  }
+              }
+              content_byte_index = 0;                             // Переходим в состояние приема первого байта
+          }
+      }
+    } else if( config.regMode == 'I' ) {
+      read_len = Serial.readBytes( &content.buf[content_byte_index], 2 - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+      if( read_len != 0 ) {
+        switch(content_byte_index) {
+          case 0:
+            if( (content.buf[0]&0xF0) != 0 ) {
+              content.buf[0] = content.buf[1];
+              content_byte_index = read_len - 1;
             }
-            content_byte_index = 0;                             // Переходим в состояние приема первого байта
+            break;
+          case 1:
+            content.values.val1 = ntohs(content.values.val1);
+            content_byte_index += read_len;
+            break;
         }
+        if( content_byte_index == 2 ) {
+          content_byte_index = 0;
+        
+          if( sd_rec_enable ) {              // Если разрешена запись на SD карту
+              led_on(LED_WR);
+              
+              DateTime now = DateTime( unix_time );
+              File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+              if( myFile ) 
+              {
+                  // Сохраняем данные в файл
+                  sprintf( 
+                      log_str, 
+                      "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
+                      unix_time,
+                      now.year(), now.month(), now.day(),
+                      now.hour(), now.minute(), now.second(),
+                      (content.values.val1&0x0800)?1:0, content.values.val1
+                  );
+                  myFile.print( log_str );
+                  
+                  myFile.close();   // Закрываем файл
+    
+              }
+              led_off(LED_WR);
+          }
+        }
+      }
     }
-    else
+    
+    if( read_len == 0 )
     {
         content_byte_index = 0; // Таймаут! Переходим в состояние приема первого байта
         //Serial.print(".");
@@ -676,7 +734,13 @@ void loop() {
                     }
                     File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                     if( myFile ) {
-                        myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" );
+                        if( config.regMode == 'I' ) {
+                            myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" );
+                        } else
+                        //if( config.regMode == 'R' ) 
+                        {
+                            myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" );
+                        } 
                         myFile.close();   // Закрываем файл
                     }
 //                    eeprom_item.data.file_number = i;
