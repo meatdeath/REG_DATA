@@ -1,4 +1,5 @@
 {
+"regMode":"I",
 "v1Max":200,
 "v1Min":1,
 "v2Max":200,
