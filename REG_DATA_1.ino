@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.37"
+#define VERSION       "1.38"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -692,8 +692,10 @@ void loop() {
         }
         if( content_byte_index == 2 ) {
           content_byte_index = 0;
+
+          uint16_t val = content.values.val1&0x7FF;
         
-          if( sd_rec_enable ) {              // Если разрешена запись на SD карту
+          if( sd_rec_enable && val <= config.vMax && val >= config.vMin ) {              // Если разрешена запись на SD карту
               led_on(LED_WR);
               
               DateTime now = DateTime( unix_time );
@@ -707,7 +709,7 @@ void loop() {
                       unix_time,
                       now.year(), now.month(), now.day(),
                       now.hour(), now.minute(), now.second(),
-                      (content.values.val1&0x0800)?1:0, content.values.val1&0x7FF
+                      (content.values.val1&0x0800)?1:0, val
                   );
                   myFile.print( log_str );
                   
