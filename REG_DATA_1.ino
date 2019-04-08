@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.34"
+#define VERSION       "1.35"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -134,32 +134,35 @@ char log_str[50];
 
 struct config_st {
   char regMode;
-  uint16_t v1Min;
-  uint16_t v1Max;
-  uint16_t v2Min;
-  uint16_t v2Max;
+  uint16_t vMin;
+  uint16_t vMax;
 };
 
 const char *configFilename = "/config.txt";  // <- SD library uses 8.3 filenames
 config_st config;                         // <- global configuration object
-
+  
 //----------------------------------------------------------------------------------------------------
 // Вспомогательные функции
 //----------------------------------------------------------------------------------------------------
 // Loads the configuration from a file
-void loadConfiguration(const char *filename, config_st &config) {
+void loadConfiguration( void ) {
   // Open file for reading
-  File file = SD.open(filename);
+  File cfg_file = SD.open(configFilename);
 
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
   // Use arduinojson.org/v6/assistant to compute the capacity.
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<64> doc;
 
   // Deserialize the JSON document
-  DeserializationError error = deserializeJson(doc, file);
-  if (error)
-    Serial.println(F("Failed to read file, using default configuration"));
+  DeserializationError error = deserializeJson(doc, cfg_file);
+  if (error) {
+    Serial.println("Failed to read file, using default configuration");
+    while(1);
+  }
+
+  // Close the file (Curiously, File's destructor doesn't close the file)
+  cfg_file.close();
 
   // Copy values from the JsonDocument to the Config
   const char* regMode = doc["regMode"];
@@ -172,13 +175,15 @@ void loadConfiguration(const char *filename, config_st &config) {
 //      config.regMode = 'R';
 //    } 
   } 
-  config.v1Max = doc["v1Max"] | 0xFFFF;
-  config.v1Min = doc["v1Min"] | 0;
-  config.v2Max = doc["v2Max"] | 0xFFFF;
-  config.v2Min = doc["v2Min"] | 0;
-
-  // Close the file (Curiously, File's destructor doesn't close the file)
-  file.close();
+  config.vMax = doc["v1Max"] | 0xFFFF;
+  config.vMin = doc["v1Min"] | 0;
+  Serial.print( "regMode: " );
+  Serial.print( config.regMode, DEC );
+  Serial.print( "\nvMax: " );
+  Serial.print( config.vMax, DEC );
+  Serial.print( "\nvMin: " );
+  Serial.print( config.vMin, DEC );
+  Serial.println();
 }
 
 // Настройка таймера для моргания в режиме установки времени
@@ -403,7 +408,7 @@ void setup() {
 //    Serial.println();
 
     // Загрузка конфигурации с SD карты
-    loadConfiguration(configFilename, config);
+    loadConfiguration();
     
     // Инициализация окончена
     Serial.println( "Initialization DONE." );
@@ -539,10 +544,10 @@ void loop() {
               content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
               content.values.val2 = ntohs(content.values.val2);
   
-              if( !( content.values.val1 > config.v1Max || 
-                     content.values.val1 < config.v1Min ||
-                     content.values.val2 > config.v2Max || 
-                     content.values.val2 < config.v2Min )  )
+              if( !( content.values.val1 > config.vMax || 
+                     content.values.val1 < config.vMin ||
+                     content.values.val2 > config.vMax || 
+                     content.values.val2 < config.vMin )  )
               {
           
                   // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
@@ -766,7 +771,8 @@ void loop() {
 //                }
                 // new_file = true;
             }
-        } else if ( button_change && !button_set ) {
+        } 
+        else if ( button_change && !button_set ) {
             // Serial.print("CHANGE pressed.\n");
             float ft = Clock.getTemperature();
             int16_t temperature = ft;
