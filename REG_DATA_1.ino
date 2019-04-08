@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.33"
+#define VERSION       "1.34"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -655,7 +655,7 @@ void loop() {
                       unix_time,
                       now.year(), now.month(), now.day(),
                       now.hour(), now.minute(), now.second(),
-                      (content.values.val1&0x0800)?1:0, content.values.val1
+                      (content.values.val1&0x0800)?1:0, content.values.val1&0x7FF
                   );
                   myFile.print( log_str );
                   
