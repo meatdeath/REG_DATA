@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.38"
+#define VERSION       "1.39"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -18,7 +18,6 @@
 #include <Wire.h>
 #include <TimerOne.h>
 #include <TM1637Display.h>
-// #include <EEPROM.h>
 #include <ArduinoJson.h>
 
 // Подключаем файлы скетча
@@ -138,54 +137,16 @@ struct config_st {
   uint16_t vMax;
 };
 
-const char configFilename[] = "config.txt";  // <- SD library uses 8.3 filenames
 config_st config;                         // <- global configuration object
   
 //----------------------------------------------------------------------------------------------------
 // Вспомогательные функции
 //----------------------------------------------------------------------------------------------------
 
-//void testJSON() {
-//  char json[] = "{\n\"regMode\":\"I\",\n\"vMax\":200,\n\"vMin\":1\n}";
-//
-//  DynamicJsonDocument doc(64);
-//  
-//  // Deserialize the JSON document
-//  DeserializationError error = deserializeJson(doc, json);
-//
-//  // Test if parsing succeeds.
-//  if (error) {
-//    Serial.print(F("deserializeJson() failed: "));
-//    Serial.println(error.c_str());
-//    return;
-//  } else {
-//          // Copy values from the JsonDocument to the Config
-//      const char* regMode = doc["regMode"] | "R";
-//      config.regMode = 'R';
-//      if( regMode[1] == 0 ) {
-//        if( regMode[0] == 'I' || regMode[0] == 'i' ) {
-//          config.regMode = 'I';
-//        }
-//    //    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
-//    //      config.regMode = 'R';
-//    //    } 
-//      } 
-//      config.vMax = doc["vMax"] | 0xFFFF;
-//      config.vMin = doc["vMin"] | 0;
-//  Serial.print( "regMode: " );
-//  Serial.print( config.regMode, DEC );
-//  Serial.print( "\nvMax: " );
-//  Serial.print( config.vMax, DEC );
-//  Serial.print( "\nvMin: " );
-//  Serial.print( config.vMin, DEC );
-//  Serial.println();
-//  }
-//}
-
-// Loads the configuration from a file
-void loadConfiguration( void ) {
+// Loads the configuration file
+inline void loadConfiguration( void ) {
   // Open file for reading
-  File cfg_file = SD.open(configFilename);
+  File cfg_file = SD.open("config.txt");
 
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
@@ -200,7 +161,7 @@ void loadConfiguration( void ) {
   cfg_file.close();
   
   if (error) {
-      Serial.println("Failed to read file, using default configuration: I");
+      Serial.println("Failed to read config file! Using default configuration");
       config.regMode = 'I';
       config.vMax = 2000;
       config.vMin = 0;
@@ -219,13 +180,13 @@ void loadConfiguration( void ) {
       config.vMax = doc["vMax"] | 0xFFFF;
       config.vMin = doc["vMin"] | 0;
   }
-  Serial.print( "regMode: " );
-  Serial.print( config.regMode, DEC );
-  Serial.print( "\nvMax: " );
-  Serial.print( config.vMax, DEC );
-  Serial.print( "\nvMin: " );
-  Serial.print( config.vMin, DEC );
-  Serial.println();
+//  Serial.print( "regMode: " );
+//  Serial.print( config.regMode, DEC );
+//  Serial.print( "\nvMax: " );
+//  Serial.print( config.vMax, DEC );
+//  Serial.print( "\nvMin: " );
+//  Serial.print( config.vMin, DEC );
+//  Serial.println();
 }
 
 // Настройка таймера для моргания в режиме установки времени
@@ -290,18 +251,6 @@ void fileDateTimeCb(uint16_t* date, uint16_t* time) {
     *time = FAT_TIME( now.hour(), now.minute(), now.second() );
 }
 
-//void eeprom_erase()
-//{
-//    // Стираем все ячейки в EEPROM
-//    for( uint16_t i = 0; (i+sizeof(eeprom_item_t)) <= EEPROM.length(); i += sizeof(eeprom_item_t) ) {
-//        EEPROM.put( i, 0xFFFFFFFF );
-//    }
-//    // Текущее значение - пустая ячейка
-//    eeprom_item.raw = 0xFFFFFFFF;
-//    // Текущий адрес записи в EEPROM
-//    eeprom_item_address = 0;
-//}
-
 // -------------------------------------------------------------------------------------------------------------
 // Начальная установка и настройка при старте МК
 // -------------------------------------------------------------------------------------------------------------
@@ -332,17 +281,10 @@ void setup() {
     
     sprintf( log_str, "Starting (version %s)...\n", VERSION );
     Serial.print(log_str);
-
-    //Serial.print("testJSON enter...");
-    //testJSON();
-    //Serial.print("testJSON exit");
-    //while(1);
   
-    //    Serial.print( "Set display brightness");
     // Установка яркости дисплея
     display.setBrightness(0x0f);
   
-    //    Serial.println( "Clear display");
     // Очистка дисплея
     display.clear();
     
@@ -360,26 +302,20 @@ void setup() {
       // Serial.println("Error while init SD card!");
       // Виснем моргая светодиодом c периодом 400мс (примерно 2 раза в сек)
       while (1) {
-        for ( i = 0; i < 3 ; i++ ) {
-          led_on(LED_REC);
-          delay(200);
-          led_off(LED_REC);
-          delay(200);
-        }
-        delay(2000);
+        led_on(LED_REC);
+        delay(200);
+        led_off(LED_REC);
+        delay(200);
       }
     }
-    //    Serial.println("SD init successfully.");
 #endif
   
     // Режим установки времени не активен
     time_set_state = TIME_SET_IDLE;
   
-    //		Serial.println("Init timer");
     // Настройка таймера для моргания в режиме установки времени
     blink_timer_start();
   
-    //    Serial.println("Init DS3231");
     // Инициализация шины I2C
     Wire.begin();
     
@@ -392,7 +328,6 @@ void setup() {
     // Запуск часов
     Clock.enableOscillator( true, false, 0 );
   
-  
     // Serial.print( "Temperature: " );
     // Serial.print( Clock.getTemperature(), DEC );
     // Serial.println( "C" );
@@ -401,60 +336,12 @@ void setup() {
     pinMode( digitalPinToInterrupt(SQW_PIN), INPUT_PULLUP );
     attachInterrupt( digitalPinToInterrupt(SQW_PIN), sqw_isr, CHANGE );
   
-    // Проверяем запущены ли часы
-    if( Clock.oscillatorCheck() == false ) {
-        Serial.println("WARNING! Clock oscillator is not running!");
-    }
+//    // Проверяем запущены ли часы
+//    if( Clock.oscillatorCheck() == false ) {
+//        Serial.println("WARNING! Clock oscillator is not running!");
+//    }
   
-//    // По умолчанию, если нет валидных ячеек, потребуется стирание
-//    bool erase_required = true;
-//    // Текущий адрес записи в EEPROM
-//    eeprom_item_address = 0;
-//    // Ищем либо свободную ячейку либо ячейку с неоконченной записью
-//    for( i = 0; (i+sizeof(eeprom_item_t)) <= EEPROM.length(); i += sizeof(eeprom_item_t) ) {
-//        // Читаем данные из ячейки EEPROM
-//        EEPROM.get( i, eeprom_item.raw );
-//        // Проверяем, найдена ли свободная ячейка
-//        if( eeprom_item.raw == 0xFFFFFFFF ) {
-//            // Стирание пока не требуется
-//            erase_required = false;
-//            // Сохраняем адрес текущей ячейки
-//            eeprom_item_address = i;
-//            // Прекращаем поиск ячейки
-//            break;
-//        }
-//        // Проверяем, находится ли в ячейке данные о неоконченной записи
-//        if( eeprom_item.data.valid == 0xFF && 
-//            (eeprom_item.raw_buf[0] + eeprom_item.raw_buf[1] + eeprom_item.raw_buf[2] - eeprom_item.raw_buf[3]) == 0 
-//        ) {
-//            // Стирание пока не требуется
-//            erase_required = false;
-//            // Сохраняем адрес текущей ячейки
-//            eeprom_item_address = i;
-//            // Включаем запись
-//            sd_rec_enable = true;
-//            // Не создавать новый файл
-//            new_file = false;
-//            // Воссановить имя файла
-//            sprintf( filename, "reg_%04d.csv", eeprom_item.data.file_number );
-//            // Вкючить светодиод записи
-//            led_on( LED_REC );
-//            break;
-//        }
-//    }
-//    // Проверяем, требуется ли стирание
-//    if( erase_required ) 
-//    {
-//        eeprom_erase();
-//    }
-    
-//    Serial.print("EEPROM addr: 0x");
-//    Serial.print(eeprom_item_address,HEX);
-//    Serial.print("  data: 0x");
-//    Serial.print(eeprom_item.data.file_number,HEX);
-//    Serial.println();
-
-    // Загрузка конфигурации с SD карты
+    // Загрузка конфигурации из файла с SD карты
     loadConfiguration();
     
     // Инициализация окончена
@@ -478,6 +365,11 @@ void loop() {
     if( time_set_state != TIME_SET_IDLE ) {
         switch ( time_set_state ) {
             case TIME_SET_YEAR:
+                if( blink_time ) {
+                    if( blinked ) display.showNumberDecEx( year, 0, true, 4, 0 );
+                    else display.clear();
+                    blink_time = false;
+                }
                 buttons_process( button_set, button_change );
                 if( !button_set && button_change ) {
                     //change_time_u16_value( &year, 2000, 2100 );
@@ -490,13 +382,14 @@ void loop() {
                 } else if( button_set && !button_change ) {
                     switch_time_state( TIME_SET_MONTH );
                 }
+                break;
+                
+            case TIME_SET_MONTH:
                 if( blink_time ) {
-                    if( blinked ) display.showNumberDecEx( year, 0, true, 4, 0 );
+                    if( blinked ) display.showNumberDecEx( month, 0, true, 2, 0 );
                     else display.clear();
                     blink_time = false;
                 }
-                break;
-            case TIME_SET_MONTH:
                 buttons_process( button_set, button_change );
                 if( !button_set && button_change ) {
                     change_time_u8_value( &month, 1, 12 );
@@ -504,13 +397,14 @@ void loop() {
                 } else if( button_set && !button_change ) {
                     switch_time_state( TIME_SET_DAY );
                 }
+                break;
+                
+            case TIME_SET_DAY:
                 if( blink_time ) {
-                    if( blinked ) display.showNumberDecEx( month, 0, true, 2, 0 );
+                    if( blinked ) display.showNumberDecEx( day, 0, true, 2, 2 );
                     else display.clear();
                     blink_time = false;
                 }
-                break;
-            case TIME_SET_DAY:
                 buttons_process( button_set, button_change );
                 if( !button_set && button_change ) {
                     change_time_u8_value( &day, 1, 31 );
@@ -518,22 +412,9 @@ void loop() {
                 } else if ( button_set && !button_change ) {
                     switch_time_state( TIME_SET_HOUR );
                 }
-                if( blink_time ) {
-                    if( blinked ) display.showNumberDecEx( day, 0, true, 2, 2 );
-                    else display.clear();
-                    blink_time = false;
-                }
                 break;
+                
             case TIME_SET_HOUR:
-                buttons_process( button_set, button_change );
-                if( !button_set && button_change ) {
-                    // change
-                    change_time_u8_value( &hour, 0, 23 );
-                    time_to_set = DateTime( time_to_set.year(), time_to_set.month(), time_to_set.day(), hour, time_to_set.minute(), 0 );
-                } else if( button_set && !button_change ) {
-                    // set
-                    switch_time_state( TIME_SET_MINUTE );
-                }
                 if( blink_time ) {
                     uint8_t minute = time_to_set.minute();
                     if( blinked ) {
@@ -545,8 +426,29 @@ void loop() {
                     }
                     blink_time = false;
                 }
+                buttons_process( button_set, button_change );
+                if( !button_set && button_change ) {
+                    // change
+                    change_time_u8_value( &hour, 0, 23 );
+                    time_to_set = DateTime( time_to_set.year(), time_to_set.month(), time_to_set.day(), hour, time_to_set.minute(), 0 );
+                } else if( button_set && !button_change ) {
+                    // set
+                    switch_time_state( TIME_SET_MINUTE );
+                }
                 break;
+                
             case TIME_SET_MINUTE:
+                if( blink_time ) {
+                    uint8_t hour = time_to_set.hour();
+                    if( blinked ) {
+                        uint16_t digits = ((uint16_t)hour) * 100 + minute;
+                        display.showNumberDecEx( digits, DISPLAY_COLON, true, 4, 0 );
+                    } else {
+                        display.clear();
+                        display.showNumberDecEx( hour, DISPLAY_COLON, true, 2, 0 );
+                    }
+                    blink_time = false;
+                }
                 buttons_process( button_set, button_change );
                 if ( !button_set && button_change ) {
                     // change
@@ -563,18 +465,8 @@ void loop() {
                     unix_time = time_to_set.unixtime();
                     switch_time_state( TIME_SET_IDLE );
                 }
-                if( blink_time ) {
-                    uint8_t hour = time_to_set.hour();
-                    if( blinked ) {
-                        uint16_t digits = ((uint16_t)hour) * 100 + minute;
-                        display.showNumberDecEx( digits, DISPLAY_COLON, true, 4, 0 );
-                    } else {
-                        display.clear();
-                        display.showNumberDecEx( hour, DISPLAY_COLON, true, 2, 0 );
-                    }
-                    blink_time = false;
-                }
                 break;
+                
             default:
                 time_set_state = TIME_SET_IDLE;
         }
@@ -582,144 +474,100 @@ void loop() {
     }
 
     uint8_t read_len = 0;
-    if( config.regMode == 'R' ) {
-      read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
-  
-      if( read_len ) {                                        // Если что-то считали из порта
-          content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
-          if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
-              content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
-              content.values.val2 = ntohs(content.values.val2);
-  
-              if( !( content.values.val1 > config.vMax || 
-                     content.values.val1 < config.vMin ||
-                     content.values.val2 > config.vMax || 
-                     content.values.val2 < config.vMin )  )
-              {
-          
-                  // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
-                  // Serial.print( log_str );
-        
-                  if( sd_rec_enable ) {              // Если разрешена запись на SD карту
-                      led_on(LED_WR);
-                      led_wr_timer = 5;
-                      // Serial.println("Pause before saving data to SD...");
-                      // delay(2000);                                    // Задержка в 2 сек для защиты от помех при выключении
-                      // Serial.println( "Recording activated" );
-                      DateTime now = DateTime( unix_time );
-                      //if( new_file ) {
-      //                if( eeprom_item.raw == 0xFFFFFFFF )
-      //                {
-      //                    for ( i = 0; i < 10000; i++ ) {
-      //                        // Генерируем имя файла в виде "reg_XXXX.csv", где XXXX=i
-      //                        sprintf( filename, "reg_%04d.csv", i );
-      //                        if ( !SD.exists(filename) ) {
-      //                            // Файл с таким именем еще не существует, используем его
-      //                            break;
-      //                        }
-      //                    }
-      //                    if ( i == 10000 ) {
-      //                        // Нет свободных имен файлов
-      //                        // Serial.println("Error! No more file names! Please remove files from SD card.");
-      //                        // Виснем моргая светодиодом c периодом 1сек
-      //                        while (1) {
-      //                            for ( i = 0; i < 3 ; i++ ) {
-      //                                led_on(LED_REC);
-      //                                delay(500);
-      //                                led_off(LED_REC);
-      //                                delay(500);
-      //                            }
-      //                            delay(2000);
-      //                        }
-      //                    }
-      //                    Serial.print( "Store recording info at address: 0x" );
-      //                    Serial.print( eeprom_item_address, HEX );
-      //                    Serial.println();
-      //                    eeprom_item.data.file_number = i;
-      //                    eeprom_item.data.valid = 0xFF;
-      //                    eeprom_item.data.checksum = (i>>8) + (i&0xFF) + 0xFF;
-      //                    EEPROM.put( eeprom_item_address, eeprom_item.raw );
-      //                } 
-      //                
-      //                sprintf( filename, "reg_%04d.csv", eeprom_item.data.file_number );
-                      File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-                      if( myFile ) 
-                      {
-      //                    if( eeprom_item.raw == 0xFFFFFFFF ) 
-      //                    {
-      //                        myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" );
-      //                    }
-                          // new_file = false;
-                          
-                          // Сохраняем данные в файл
-                          sprintf( 
-                              log_str, 
-                              "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
-                              unix_time,
-                              now.year(), now.month(), now.day(),
-                              now.hour(), now.minute(), now.second(),
-                              content.values.val1, content.values.val2
-                          );
-                          myFile.print( log_str );
-                          
-                          myFile.close();   // Закрываем файл
-            
-                      } else {
-                          //Serial.print( "Error! Can't open file!\n" );
-                      }
-                      led_off(LED_WR);
-                  } else {
-                      //Serial.print( "Recording is not active. Data SKIPPED!\n" );
-                  }
-              }
-              content_byte_index = 0;                             // Переходим в состояние приема первого байта
-          }
-      }
-    } else if( config.regMode == 'I' ) {
-      read_len = Serial.readBytes( &content.buf[content_byte_index], 2 - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
-      if( read_len != 0 ) {
-        switch(content_byte_index) {
-          case 0:
-            if( (content.buf[0]&0xF0) != 0 ) {
-              content.buf[0] = content.buf[1];
-              content_byte_index = read_len - 1;
-            }
-            break;
-          case 1:
-            content.values.val1 = ntohs(content.values.val1);
-            content_byte_index += read_len;
-            break;
-        }
-        if( content_byte_index == 2 ) {
-          content_byte_index = 0;
-
-          uint16_t val = content.values.val1&0x7FF;
-        
-          if( sd_rec_enable && val <= config.vMax && val >= config.vMin ) {              // Если разрешена запись на SD карту
-              led_on(LED_WR);
-              
-              DateTime now = DateTime( unix_time );
-              File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-              if( myFile ) 
-              {
-                  // Сохраняем данные в файл
-                  sprintf( 
-                      log_str, 
-                      "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
-                      unix_time,
-                      now.year(), now.month(), now.day(),
-                      now.hour(), now.minute(), now.second(),
-                      (content.values.val1&0x0800)?1:0, val
-                  );
-                  myFile.print( log_str );
-                  
-                  myFile.close();   // Закрываем файл
     
-              }
-              led_off(LED_WR);
-          }
+    if( config.regMode == 'R' ) 
+    {
+        read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+    
+        if( read_len ) {                                        // Если что-то считали из порта
+            content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
+            if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
+                content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
+                content.values.val2 = ntohs(content.values.val2);
+    
+                if( !( content.values.val1 > config.vMax || 
+                       content.values.val1 < config.vMin ||
+                       content.values.val2 > config.vMax || 
+                       content.values.val2 < config.vMin )  )
+                {
+            
+                    // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
+                    // Serial.print( log_str );
+          
+                    if( sd_rec_enable ) {              // Если разрешена запись на SD карту
+                        led_on(LED_WR);
+                        led_wr_timer = 5;
+                        DateTime now = DateTime( unix_time );
+                        File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+                        if( myFile ) 
+                        {
+                            // Сохраняем данные в файл
+                            sprintf( 
+                                log_str, 
+                                "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
+                                unix_time,
+                                now.year(), now.month(), now.day(),
+                                now.hour(), now.minute(), now.second(),
+                                content.values.val1, content.values.val2
+                            );
+                            myFile.print( log_str );
+                            
+                            myFile.close();   // Закрываем файл
+              
+                        } 
+                        led_off(LED_WR);
+                    } 
+                }
+                content_byte_index = 0;                             // Переходим в состояние приема первого байта
+            }
         }
-      }
+    } 
+    else if( config.regMode == 'I' ) 
+    {
+        read_len = Serial.readBytes( &content.buf[content_byte_index], 2 - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        if( read_len != 0 ) {
+            switch(content_byte_index) {
+                case 0:
+                    if( (content.buf[0]&0xF0) != 0 ) {
+                        content.buf[0] = content.buf[1];
+                        content_byte_index = read_len - 1;
+                    }
+                    break;
+                case 1:
+                    content.values.val1 = ntohs(content.values.val1);
+                    content_byte_index += read_len;
+                    break;
+            }
+            if( content_byte_index == 2 ) {
+                content_byte_index = 0;
+      
+                uint16_t val = content.values.val1&0x7FF;
+              
+                if( sd_rec_enable && val <= config.vMax && val >= config.vMin ) {              // Если разрешена запись на SD карту
+                    led_on(LED_WR);
+                    
+                    DateTime now = DateTime( unix_time );
+                    File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+                    if( myFile ) 
+                    {
+                        // Сохраняем данные в файл
+                        sprintf( 
+                            log_str, 
+                            "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
+                            unix_time,
+                            now.year(), now.month(), now.day(),
+                            now.hour(), now.minute(), now.second(),
+                            (content.values.val1&0x0800)?1:0, val
+                        );
+                        myFile.print( log_str );
+                        
+                        myFile.close();   // Закрываем файл
+          
+                    }
+                    led_off(LED_WR);
+                }
+            }
+        }
     }
     
     if( read_len == 0 )
@@ -757,7 +605,6 @@ void loop() {
             if( sd_rec_enable ) 
             {
                 led_on(LED_REC);
-                //if( eeprom_item.raw == 0xFFFFFFFF )
                 {
                     for( i = 0; i < 10000; i++ ) 
                     {
@@ -776,57 +623,31 @@ void loop() {
                         // Виснем моргая светодиодом c периодом 1сек
                         while(1) 
                         {
-                            for( i = 0; i < 3 ; i++ ) 
-                            {
-                                led_on(LED_REC);
-                                delay(500);
-                                led_off(LED_REC);
-                                delay(500);
-                            }
-                            delay(2000);
+                            led_on(LED_REC);
+                            delay(500);
+                            led_off(LED_REC);
+                            delay(500);
                         }
                     }
                     File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                     if( myFile ) {
-                        if( config.regMode == 'I' ) {
-                            myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" );
-                        } else
-                        //if( config.regMode == 'R' ) 
-                        {
-                            myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" );
-                        } 
+                        switch( config.regMode ) {
+                            case 'I': myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
+                            case 'R':
+                            default:  myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" ); break;
+                        }
                         myFile.close();   // Закрываем файл
                     }
-//                    eeprom_item.data.file_number = i;
-//                    eeprom_item.data.valid = 0xFF;
-//                    eeprom_item.data.checksum = (i>>8) + (i&0xFF) + 0xFF;
-//                    Serial.print( "Store recording info at address: 0x" );
-//                    Serial.print( eeprom_item_address, HEX );
-//                    Serial.println();
-//                    EEPROM.put( eeprom_item_address, eeprom_item.raw );
                 }
             }
             else {
                 led_off(LED_REC);
-        
-                // if( new_file == false ) 
-//                {
-//                    EEPROM[eeprom_item_address+2] = 0x00; // invalidate item
-//                }
-//                eeprom_item_address += sizeof(eeprom_item_t);
-//                if( (eeprom_item_address+sizeof(eeprom_item_t)) >= EEPROM.length() )
-//                {
-//                    eeprom_erase();
-//                }
-                // new_file = true;
             }
         } 
         else if ( button_change && !button_set ) {
             // Serial.print("CHANGE pressed.\n");
             float ft = Clock.getTemperature();
             int16_t temperature = ft;
-            // sprintf( log_str, "Temperature: %ud C\n", temperature );
-            // Serial.print( log_str );
             uint8_t t_seg[4] = { 0, 0, 0, display.encodeDigit(0xC) };
             if( temperature < 0 ) {
                 temperature = -temperature;
@@ -840,7 +661,6 @@ void loop() {
                 t_seg[1] = display.encodeDigit(temperature/10);
             display.setSegments(t_seg);
 
-            //display.showNumberDecEx(temperature, 0, true, 4, 0);
             delay(3000);
         }
     }
