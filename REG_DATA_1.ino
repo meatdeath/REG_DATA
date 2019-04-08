@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.36"
+#define VERSION       "1.37"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -144,6 +144,44 @@ config_st config;                         // <- global configuration object
 //----------------------------------------------------------------------------------------------------
 // Вспомогательные функции
 //----------------------------------------------------------------------------------------------------
+
+//void testJSON() {
+//  char json[] = "{\n\"regMode\":\"I\",\n\"vMax\":200,\n\"vMin\":1\n}";
+//
+//  DynamicJsonDocument doc(64);
+//  
+//  // Deserialize the JSON document
+//  DeserializationError error = deserializeJson(doc, json);
+//
+//  // Test if parsing succeeds.
+//  if (error) {
+//    Serial.print(F("deserializeJson() failed: "));
+//    Serial.println(error.c_str());
+//    return;
+//  } else {
+//          // Copy values from the JsonDocument to the Config
+//      const char* regMode = doc["regMode"] | "R";
+//      config.regMode = 'R';
+//      if( regMode[1] == 0 ) {
+//        if( regMode[0] == 'I' || regMode[0] == 'i' ) {
+//          config.regMode = 'I';
+//        }
+//    //    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
+//    //      config.regMode = 'R';
+//    //    } 
+//      } 
+//      config.vMax = doc["vMax"] | 0xFFFF;
+//      config.vMin = doc["vMin"] | 0;
+//  Serial.print( "regMode: " );
+//  Serial.print( config.regMode, DEC );
+//  Serial.print( "\nvMax: " );
+//  Serial.print( config.vMax, DEC );
+//  Serial.print( "\nvMin: " );
+//  Serial.print( config.vMin, DEC );
+//  Serial.println();
+//  }
+//}
+
 // Loads the configuration from a file
 void loadConfiguration( void ) {
   // Open file for reading
@@ -152,7 +190,8 @@ void loadConfiguration( void ) {
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
   // Use arduinojson.org/v6/assistant to compute the capacity.
-  StaticJsonDocument<64> doc;
+  //StaticJsonDocument<64> doc;
+  DynamicJsonDocument doc(64);
 
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, cfg_file);
@@ -161,8 +200,8 @@ void loadConfiguration( void ) {
   cfg_file.close();
   
   if (error) {
-      Serial.println("Failed to read file, using default configuration");
-      config.regMode = 'R';
+      Serial.println("Failed to read file, using default configuration: I");
+      config.regMode = 'I';
       config.vMax = 2000;
       config.vMin = 0;
   } else {
@@ -293,6 +332,11 @@ void setup() {
     
     sprintf( log_str, "Starting (version %s)...\n", VERSION );
     Serial.print(log_str);
+
+    //Serial.print("testJSON enter...");
+    //testJSON();
+    //Serial.print("testJSON exit");
+    //while(1);
   
     //    Serial.print( "Set display brightness");
     // Установка яркости дисплея
