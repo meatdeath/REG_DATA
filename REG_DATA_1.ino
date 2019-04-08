@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.35"
+#define VERSION       "1.36"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -138,7 +138,7 @@ struct config_st {
   uint16_t vMax;
 };
 
-const char *configFilename = "/config.txt";  // <- SD library uses 8.3 filenames
+const char configFilename[] = "config.txt";  // <- SD library uses 8.3 filenames
 config_st config;                         // <- global configuration object
   
 //----------------------------------------------------------------------------------------------------
@@ -156,27 +156,30 @@ void loadConfiguration( void ) {
 
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, cfg_file);
-  if (error) {
-    Serial.println("Failed to read file, using default configuration");
-    while(1);
-  }
 
   // Close the file (Curiously, File's destructor doesn't close the file)
   cfg_file.close();
-
-  // Copy values from the JsonDocument to the Config
-  const char* regMode = doc["regMode"];
-  config.regMode = 'R';
-  if( regMode[1] == 0 ) {
-    if( regMode[0] == 'I' || regMode[0] == 'i' ) {
-      config.regMode = 'I';
-    }
-//    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
-//      config.regMode = 'R';
-//    } 
-  } 
-  config.vMax = doc["v1Max"] | 0xFFFF;
-  config.vMin = doc["v1Min"] | 0;
+  
+  if (error) {
+      Serial.println("Failed to read file, using default configuration");
+      config.regMode = 'R';
+      config.vMax = 2000;
+      config.vMin = 0;
+  } else {
+      // Copy values from the JsonDocument to the Config
+      const char* regMode = doc["regMode"] | "R";
+      config.regMode = 'R';
+      if( regMode[1] == 0 ) {
+        if( regMode[0] == 'I' || regMode[0] == 'i' ) {
+          config.regMode = 'I';
+        }
+    //    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
+    //      config.regMode = 'R';
+    //    } 
+      } 
+      config.vMax = doc["vMax"] | 0xFFFF;
+      config.vMin = doc["vMin"] | 0;
+  }
   Serial.print( "regMode: " );
   Serial.print( config.regMode, DEC );
   Serial.print( "\nvMax: " );
