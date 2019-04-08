@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.39"
+#define VERSION       "1.40"
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -18,7 +18,7 @@
 #include <Wire.h>
 #include <TimerOne.h>
 #include <TM1637Display.h>
-#include <ArduinoJson.h>
+//#include <ArduinoJson.h>
 
 // Подключаем файлы скетча
 #include "buttons.h"
@@ -145,48 +145,48 @@ config_st config;                         // <- global configuration object
 
 // Loads the configuration file
 inline void loadConfiguration( void ) {
-  // Open file for reading
-  File cfg_file = SD.open("config.txt");
-
-  // Allocate a temporary JsonDocument
-  // Don't forget to change the capacity to match your requirements.
-  // Use arduinojson.org/v6/assistant to compute the capacity.
-  //StaticJsonDocument<64> doc;
-  DynamicJsonDocument doc(64);
-
-  // Deserialize the JSON document
-  DeserializationError error = deserializeJson(doc, cfg_file);
-
-  // Close the file (Curiously, File's destructor doesn't close the file)
-  cfg_file.close();
-  
-  if (error) {
-      Serial.println("Failed to read config file! Using default configuration");
+//  // Open file for reading
+//  File cfg_file = SD.open("config.txt");
+//
+//  // Allocate a temporary JsonDocument
+//  // Don't forget to change the capacity to match your requirements.
+//  // Use arduinojson.org/v6/assistant to compute the capacity.
+//  //StaticJsonDocument<64> doc;
+//  DynamicJsonDocument doc(64);
+//
+//  // Deserialize the JSON document
+//  DeserializationError error = deserializeJson(doc, cfg_file);
+//
+//  // Close the file (Curiously, File's destructor doesn't close the file)
+//  cfg_file.close();
+//  
+//  if (error) {
+//      Serial.println("Failed to read config file! Using default configuration");
       config.regMode = 'I';
       config.vMax = 2000;
       config.vMin = 0;
-  } else {
-      // Copy values from the JsonDocument to the Config
-      const char* regMode = doc["regMode"] | "R";
-      config.regMode = 'R';
-      if( regMode[1] == 0 ) {
-        if( regMode[0] == 'I' || regMode[0] == 'i' ) {
-          config.regMode = 'I';
-        }
-    //    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
-    //      config.regMode = 'R';
-    //    } 
-      } 
-      config.vMax = doc["vMax"] | 0xFFFF;
-      config.vMin = doc["vMin"] | 0;
-  }
-//  Serial.print( "regMode: " );
-//  Serial.print( config.regMode, DEC );
-//  Serial.print( "\nvMax: " );
-//  Serial.print( config.vMax, DEC );
-//  Serial.print( "\nvMin: " );
-//  Serial.print( config.vMin, DEC );
-//  Serial.println();
+//  } else {
+//      // Copy values from the JsonDocument to the Config
+//      const char* regMode = doc["regMode"] | "R";
+//      config.regMode = 'R';
+//      if( regMode[1] == 0 ) {
+//        if( regMode[0] == 'I' || regMode[0] == 'i' ) {
+//          config.regMode = 'I';
+//        }
+//    //    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
+//    //      config.regMode = 'R';
+//    //    } 
+//      } 
+//      config.vMax = doc["vMax"] | 0xFFFF;
+//      config.vMin = doc["vMin"] | 0;
+//  }
+////  Serial.print( "regMode: " );
+////  Serial.print( config.regMode, DEC );
+////  Serial.print( "\nvMax: " );
+////  Serial.print( config.vMax, DEC );
+////  Serial.print( "\nvMin: " );
+////  Serial.print( config.vMin, DEC );
+////  Serial.println();
 }
 
 // Настройка таймера для моргания в режиме установки времени
@@ -566,6 +566,9 @@ void loop() {
                     }
                     led_off(LED_WR);
                 }
+
+//                Serial.print( "\n : " );
+//                Serial.print( val, DEC );
             }
         }
     }
@@ -604,8 +607,6 @@ void loop() {
             // Serial.print("\nSTART/STOP pressed.\n");
             if( sd_rec_enable ) 
             {
-                led_on(LED_REC);
-                {
                     for( i = 0; i < 10000; i++ ) 
                     {
                         // Генерируем имя файла в виде "reg_XXXX.csv", где XXXX=i
@@ -638,7 +639,6 @@ void loop() {
                         }
                         myFile.close();   // Закрываем файл
                     }
-                }
             }
             else {
                 led_off(LED_REC);
