@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.41"
+#define VERSION       "1.42"
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -154,13 +154,18 @@ inline void loadConfiguration( void ) {
 //  
 //  if (error) {
 //      Serial.println("Failed to read config file! Using default configuration");
-      config.regMode = 'R';
+      config.regMode = 'I';
 #ifdef TEST
       config.vMax = 200;
       config.vMin = 5;
 #else
-      config.vMax = 2000;
-      config.vMin = 0;
+      if( config.regMode == 'I' ) {
+          config.vMax = 2000;
+          config.vMin = 0;
+      } else if( config.regMode == 'R' ) {
+          config.vMax = 200;
+          config.vMin = 0;
+      }
 #endif
 //  } else {
 //      // Copy values from the JsonDocument to the Config
@@ -495,10 +500,10 @@ void loop() {
                 content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
                 content.values.val2 = ntohs(content.values.val2);
     
-                if( !( content.values.val1 > config.vMax || 
-                       content.values.val1 < config.vMin ||
-                       content.values.val2 > config.vMax || 
-                       content.values.val2 < config.vMin )  )
+                if( !( content.values.val1 >= config.vMax || 
+                       content.values.val1 <= config.vMin ||
+                       content.values.val2 >= config.vMax || 
+                       content.values.val2 <= config.vMin )  )
                 {
             
                     // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
@@ -559,7 +564,9 @@ void loop() {
               
                 content.iVal = ntohs(content.iVal);
 #define IVALUE_MASK 0x7FF
-                if( sd_rec_enable && (content.iVal&IVALUE_MASK) <= config.vMax && (content.iVal&IVALUE_MASK) >= config.vMin ) 
+                if(  sd_rec_enable && 
+                    (content.iVal&IVALUE_MASK) <= config.vMax && 
+                    (content.iVal&IVALUE_MASK) >= config.vMin ) 
                 {              // Если разрешена запись на SD карту
                     led_on(LED_WR);
                     
@@ -577,7 +584,7 @@ void loop() {
                             unix_time,
                             now.year(), now.month(), now.day(),
                             now.hour(), now.minute(), now.second(),
-                            (content.iVal&0x0800)?1:0, content.iVal&IVALUE_MASK
+                            (content.iVal&0x0800)?1000:0, content.iVal&IVALUE_MASK
                         );
                         
 #ifndef TEST
