@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.42"
+#define VERSION       "1.43"
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -61,9 +61,20 @@
 #define led_on(pin)     digitalWrite(pin, HIGH);    // Зажечь LED (HIGH is the voltage level)
 
 // Для дисплея
+//     A
+//    ---
+// F |   | B
+//    -G-
+// E |   | C
+//    --- 
+//     D
+
 #define DISPLAY_COLON   0xE0
 #define SEG_G           0b01000000
+#define SEG_G           0b00010000
 #define SEG_MINUS       SEG_G
+#define SEG_LETTER_r    (SEG_E|SEG_G)
+#define SEG_LETTER_i    SEG_E
 
 
 //----------------------------------------------------------------------------------------------------
@@ -271,9 +282,34 @@ void setup() {
     led_init(LED_WR);                           // Инициализация LED (D8)
     led_off(LED_WR);
     led_wr_timer = 0;
-  
+
+    // Инициализируем кнопки
     buttons_init();                             // Инициализация пинов кнопок
-  
+
+    // Режим работы по умолчанию
+    config.regMode = 'R';
+    // Если при старте нажата кнопка CHANGE(ИЗМЕНИТЬ), то меняем режим работы устройства
+    if( digitalRead(BUTTON2_PIN) ) {
+        if( config.regMode == 'R' )
+            config.regMode = 'I';
+        else
+            config.regMode = 'R';
+    }
+        
+    if( config.regMode == 'I' ) {
+        config.vMax = 2000;
+        config.vMin = 0;
+    } else if( config.regMode == 'R' ) {
+        config.vMax = 200;
+        config.vMin = 0;
+    }
+    
+    // Очистка дисплея
+    display.clear();
+    
+    uint8_t t_seg[4] = { (config.regMode=="R")?SEG_LETTER_r:SEG_LETTER_i, VERSION[0]-'0', VERSION[2]-'0', VERSION[3]-'0' };
+    display.setSegments(t_seg);
+            
     delay(2000);                                // Задержка в 2 сек для защиты от помех при включении
   
     // Инициализация UART: скорость передачи данных 115200 бод
@@ -355,7 +391,7 @@ void setup() {
 #endif
 
     // Загрузка конфигурации из файла с SD карты
-    loadConfiguration();
+    // loadConfiguration();
     
     // Инициализация окончена
     Serial.println( "Initialization DONE." );
