@@ -7,7 +7,8 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.43"
+#define VERSION       "1.44"
+#define DEFAULT_MODE  'R'
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -70,11 +71,19 @@
 //     D
 
 #define DISPLAY_COLON   0xE0
-#define SEG_G           0b01000000
-#define SEG_G           0b00010000
+
 #define SEG_MINUS       SEG_G
 #define SEG_LETTER_r    (SEG_E|SEG_G)
 #define SEG_LETTER_i    SEG_E
+#define SEG_LETTER_E    (SEG_A|SEG_D|SEG_E|SEG_F|SEG_G)
+
+enum _enDisplayErrors {
+    ERROR_INIT_CD_ERR = 0,
+    ERROR_INIT_OSCILLATOR,
+    ERROR_FILE_NUMBER,
+    ERROR_WRITE_FILE,
+    ERROR_MAX // maximum 9 supported
+};
 
 
 //----------------------------------------------------------------------------------------------------
@@ -165,7 +174,7 @@ inline void loadConfiguration( void ) {
 //  
 //  if (error) {
 //      Serial.println("Failed to read config file! Using default configuration");
-      config.regMode = 'I';
+      config.regMode = DEFAULT_MODE;
 #ifdef TEST
       config.vMax = 200;
       config.vMin = 5;
@@ -264,6 +273,35 @@ void fileDateTimeCb(uint16_t* date, uint16_t* time) {
     // return time using FAT_TIME macro to format fields
     *time = FAT_TIME( now.hour(), now.minute(), now.second() );
 }
+
+void display_error(uint8_t err_code) {
+    uint16_t led_delay = 100;
+    uint8_t t_seg[4] = { SEG_LETTER_E, SEG_LETTER_r, SEG_LETTER_r , 0 };
+    switch(err_code) {
+        case ERROR_INIT_CD_ERR:
+            led_delay = 250;
+            t_seg[3] = display.encodeDigit(err_code);
+            break;
+        case ERROR_INIT_OSCILLATOR:
+            led_delay = 250;
+            t_seg[3] = display.encodeDigit(err_code);
+            break;
+        case ERROR_FILE_NUMBER:
+            led_delay = 500;
+            t_seg[3] = display.encodeDigit(err_code);
+            break;
+        case ERROR_WRITE_FILE:
+            led_delay = 500;
+            t_seg[3] = display.encodeDigit(err_code);
+            break;
+    }
+    while (1) {
+        led_on(LED_REC);
+        delay(led_delay);
+        led_off(LED_REC);
+        delay(led_delay);
+    }
+}
 #endif
 
 // -------------------------------------------------------------------------------------------------------------
@@ -307,7 +345,11 @@ void setup() {
     // Очистка дисплея
     display.clear();
     
-    uint8_t t_seg[4] = { (config.regMode=="R")?SEG_LETTER_r:SEG_LETTER_i, VERSION[0]-'0', VERSION[2]-'0', VERSION[3]-'0' };
+    uint8_t t_seg[4] = { 
+        (config.regMode=="R")?SEG_LETTER_r:SEG_LETTER_i, 
+        display.encodeDigit(VERSION[0]-'0'), 
+        display.encodeDigit(VERSION[2]-'0'), 
+        display.encodeDigit(VERSION[3]-'0') };
     display.setSegments(t_seg);
             
     delay(2000);                                // Задержка в 2 сек для защиты от помех при включении
@@ -342,12 +384,7 @@ void setup() {
       // Ошибка при инициализиации SD карты
       // Serial.println("Error while init SD card!");
       // Виснем моргая светодиодом c периодом 400мс (примерно 2 раза в сек)
-      while (1) {
-        led_on(LED_REC);
-        delay(200);
-        led_off(LED_REC);
-        delay(200);
-      }
+      display_error(ERROR_INIT_CD_ERR);
     }
 #endif
 
@@ -380,10 +417,11 @@ void setup() {
     pinMode( digitalPinToInterrupt(SQW_PIN), INPUT_PULLUP );
     attachInterrupt( digitalPinToInterrupt(SQW_PIN), sqw_isr, CHANGE );
   
-//    // Проверяем запущены ли часы
-//    if( Clock.oscillatorCheck() == false ) {
-//        Serial.println("WARNING! Clock oscillator is not running!");
-//    }
+   // Проверяем запущены ли часы
+   if( Clock.oscillatorCheck() == false ) {
+       //Serial.println("WARNING! Clock oscillator is not running!");
+       display_error(ERROR_INIT_OSCILLATOR);
+   }
 #endif
 
 #ifdef TEST
@@ -627,6 +665,10 @@ void loop() {
                         myFile.print( log_str );
                         myFile.close();   // Закрываем файл
                     }
+                    else
+                    {
+                        display_error(ERROR_WRITE_FILE);
+                    }
 #else
                         Serial.print( log_str );
 #endif
@@ -689,13 +731,14 @@ void loop() {
                     // Нет свободных имен файлов
                     // Serial.println("Error! No more file names! Please remove files from SD card.");
                     // Виснем моргая светодиодом c периодом 1сек
-                    while(1) 
-                    {
-                        led_on(LED_REC);
-                        delay(500);
-                        led_off(LED_REC);
-                        delay(500);
-                    }
+                    // while(1) 
+                    // {
+                    //     led_on(LED_REC);
+                    //     delay(500);
+                    //     led_off(LED_REC);
+                    //     delay(500);
+                    // }
+                    display_error(ERROR_FILE_NUMBER);
                 }
                 File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                 if( myFile ) {
