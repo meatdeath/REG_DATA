@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.44"
+#define VERSION       "1.45"
 #define DEFAULT_MODE  'R'
 //#define TEST
 
@@ -279,7 +279,7 @@ void display_error(uint8_t err_code) {
     uint8_t t_seg[4] = { SEG_LETTER_E, SEG_LETTER_r, SEG_LETTER_r , 0 };
     switch(err_code) {
         case ERROR_INIT_CD_ERR:
-            led_delay = 250;
+            led_delay = 100;
             t_seg[3] = display.encodeDigit(err_code);
             break;
         case ERROR_INIT_OSCILLATOR:
@@ -291,7 +291,7 @@ void display_error(uint8_t err_code) {
             t_seg[3] = display.encodeDigit(err_code);
             break;
         case ERROR_WRITE_FILE:
-            led_delay = 500;
+            led_delay = 1000;
             t_seg[3] = display.encodeDigit(err_code);
             break;
     }
@@ -370,6 +370,7 @@ void setup() {
   
     // Очистка дисплея
     display.clear();
+    Serial.print(".");
     
     time_print_time = true;   // пришло время отобразить время на дислее
     time_print_point = true;  // время отображать двоеточие
@@ -386,6 +387,7 @@ void setup() {
       // Виснем моргая светодиодом c периодом 400мс (примерно 2 раза в сек)
       display_error(ERROR_INIT_CD_ERR);
     }
+    Serial.print(".");
 #endif
 
 #endif
@@ -402,12 +404,14 @@ void setup() {
 #ifndef TEST
     // Инициализация шины I2C
     Wire.begin();
+    Serial.print(".");
     
     // Чтение времени
     unix_time = RTC.now().unixtime();
     
     // Запуск часов
     Clock.enableOscillator( true, false, 0 );
+    Serial.print(".");
   
     // Serial.print( "Temperature: " );
     // Serial.print( Clock.getTemperature(), DEC );
@@ -417,11 +421,11 @@ void setup() {
     pinMode( digitalPinToInterrupt(SQW_PIN), INPUT_PULLUP );
     attachInterrupt( digitalPinToInterrupt(SQW_PIN), sqw_isr, CHANGE );
   
-   // Проверяем запущены ли часы
-   if( Clock.oscillatorCheck() == false ) {
-       //Serial.println("WARNING! Clock oscillator is not running!");
-       display_error(ERROR_INIT_OSCILLATOR);
-   }
+//    // Проверяем запущены ли часы
+//    if( Clock.oscillatorCheck() == false ) {
+//        Serial.println("WARNING! Clock oscillator is not running!");
+//        display_error(ERROR_INIT_OSCILLATOR);
+//    }
 #endif
 
 #ifdef TEST
