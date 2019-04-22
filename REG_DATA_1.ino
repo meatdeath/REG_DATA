@@ -7,8 +7,8 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.45"
-#define DEFAULT_MODE  'R'
+#define VERSION       "1.46"
+#define DEFAULT_MODE  'I'
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -78,7 +78,7 @@
 #define SEG_LETTER_E    (SEG_A|SEG_D|SEG_E|SEG_F|SEG_G)
 
 enum _enDisplayErrors {
-    ERROR_INIT_CD_ERR = 0,
+    ERROR_INIT_SD_ERR = 0,
     ERROR_INIT_OSCILLATOR,
     ERROR_FILE_NUMBER,
     ERROR_WRITE_FILE,
@@ -278,7 +278,7 @@ void display_error(uint8_t err_code) {
     uint16_t led_delay = 100;
     uint8_t t_seg[4] = { SEG_LETTER_E, SEG_LETTER_r, SEG_LETTER_r , 0 };
     switch(err_code) {
-        case ERROR_INIT_CD_ERR:
+        case ERROR_INIT_SD_ERR:
             led_delay = 100;
             t_seg[3] = display.encodeDigit(err_code);
             break;
@@ -295,10 +295,16 @@ void display_error(uint8_t err_code) {
             t_seg[3] = display.encodeDigit(err_code);
             break;
     }
+    //display.setSegments(t_seg);
     while (1) {
         led_on(LED_REC);
+        display.setBrightness(0x0F);
+        display.setSegments(t_seg);
         delay(led_delay);
+        
         led_off(LED_REC);
+        display.setBrightness(0x00);
+        display.setSegments(t_seg);
         delay(led_delay);
     }
 }
@@ -325,13 +331,15 @@ void setup() {
     buttons_init();                             // Инициализация пинов кнопок
 
     // Режим работы по умолчанию
-    config.regMode = 'R';
+    config.regMode = DEFAULT_MODE;
     // Если при старте нажата кнопка CHANGE(ИЗМЕНИТЬ), то меняем режим работы устройства
-    if( digitalRead(BUTTON2_PIN) ) {
-        if( config.regMode == 'R' )
+    if( digitalRead(BUTTON2_PIN) == BUTTON_ACTIVE ) {
+        if( config.regMode == 'R' ) {
             config.regMode = 'I';
-        else
+        }
+        else {
             config.regMode = 'R';
+        }
     }
         
     if( config.regMode == 'I' ) {
@@ -341,36 +349,36 @@ void setup() {
         config.vMax = 200;
         config.vMin = 0;
     }
-    
-    // Очистка дисплея
-    display.clear();
-    
-    uint8_t t_seg[4] = { 
-        (config.regMode=="R")?SEG_LETTER_r:SEG_LETTER_i, 
-        display.encodeDigit(VERSION[0]-'0'), 
-        display.encodeDigit(VERSION[2]-'0'), 
-        display.encodeDigit(VERSION[3]-'0') };
-    display.setSegments(t_seg);
-            
-    delay(2000);                                // Задержка в 2 сек для защиты от помех при включении
+
+    //delay(1000);
   
     // Инициализация UART: скорость передачи данных 115200 бод
     Serial.begin( 115200 );
     // Таймаут приема данных функцией Serial.readBytes() настраиваем на 0.1 сек
     Serial.setTimeout( 100 );
     // Печатаем в UART о том, что начали работать
-    
-    
     sprintf( log_str, "Starting (version %s)...\n", VERSION );
     Serial.print(log_str);
+    
+    // Установка яркости дисплея
+    display.setBrightness(0x0F);
+    
+    // Очистка дисплея
+    display.clear();
+    
+    uint8_t t_seg[4] = { 
+        (config.regMode=='R')?SEG_LETTER_r:SEG_LETTER_i, 
+        display.encodeDigit(VERSION[0]-'0'), 
+        display.encodeDigit(VERSION[2]-'0'), 
+        display.encodeDigit(VERSION[3]-'0') };
+    display.setSegments(t_seg);
+            
+    delay(2000);                                // Задержка в 2 сек для защиты от помех при включении
 
 #ifndef TEST
-    // Установка яркости дисплея
-    display.setBrightness(0x0f);
   
     // Очистка дисплея
     display.clear();
-    Serial.print(".");
     
     time_print_time = true;   // пришло время отобразить время на дислее
     time_print_point = true;  // время отображать двоеточие
@@ -385,9 +393,8 @@ void setup() {
       // Ошибка при инициализиации SD карты
       // Serial.println("Error while init SD card!");
       // Виснем моргая светодиодом c периодом 400мс (примерно 2 раза в сек)
-      display_error(ERROR_INIT_CD_ERR);
+      display_error(ERROR_INIT_SD_ERR);
     }
-    Serial.print(".");
 #endif
 
 #endif
@@ -404,14 +411,12 @@ void setup() {
 #ifndef TEST
     // Инициализация шины I2C
     Wire.begin();
-    Serial.print(".");
     
     // Чтение времени
     unix_time = RTC.now().unixtime();
     
     // Запуск часов
     Clock.enableOscillator( true, false, 0 );
-    Serial.print(".");
   
     // Serial.print( "Temperature: " );
     // Serial.print( Clock.getTemperature(), DEC );
