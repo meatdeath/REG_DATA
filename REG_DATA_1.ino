@@ -3,12 +3,12 @@
  * :Author: Vladimir Novac
  * :Email: vladimir.novac.1980@gmail.com
  * :Date created: 26/12/2018
- * :Modified Date: 07/04/2019
+ * :Modified Date: 02/03/2019
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.46"
-#define DEFAULT_MODE  'I'
+#define VERSION       "1.47"
+#define DEFAULT_MODE  'R'
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -52,14 +52,18 @@
 // Макросы
 // ---------------------------------------------------------------------------------------------------
 
+#define FILE_NUMBER_MAX     1000
 // Инверсия байт
-#define htons(x)        ( ((x)<< 8 & 0xFF00) | ((x)>> 8 & 0x00FF) )
-#define ntohs(x)        htons(x)
+#define htons(x)            ( ((x)<< 8 & 0xFF00) | ((x)>> 8 & 0x00FF) )
+#define ntohs(x)            htons(x)
 
 // Управление светодиодами
-#define led_init(pin)   pinMode(pin, OUTPUT);       // Инициализация LED
-#define led_off(pin)    digitalWrite(pin, LOW);     // Погасить LED (LOW is the voltage level)
-#define led_on(pin)     digitalWrite(pin, HIGH);    // Зажечь LED (HIGH is the voltage level)
+#define led_init(pin)       pinMode(pin, OUTPUT);       // Инициализация LED
+#define led_off(pin)        digitalWrite(pin, LOW);     // Погасить LED (LOW is the voltage level)
+#define led_on(pin)         digitalWrite(pin, HIGH);    // Зажечь LED (HIGH is the voltage level)
+
+
+#define DISPLAY_COLON   0xE0
 
 // Для дисплея
 //     A
@@ -70,12 +74,30 @@
 //    --- 
 //     D
 
-#define DISPLAY_COLON   0xE0
+const uint8_t seg_digit[] = {
+    (SEG_A|SEG_B|SEG_C|SEG_D|SEG_E|SEG_F      ),  // 0
+    (SEG_B|      SEG_C                        ),  // 1
+    (SEG_A|SEG_B|      SEG_D|SEG_E|      SEG_G),  // 2
+    (SEG_A|SEG_B|SEG_C|SEG_D|            SEG_G),  // 3
+    (SEG_B|      SEG_C|            SEG_F|SEG_G),  // 4
+    (SEG_A|      SEG_C|SEG_D|      SEG_F|SEG_G),  // 5
+    (SEG_A|      SEG_C|SEG_D|SEG_E|SEG_F|SEG_G),  // 6
+    (SEG_A|SEG_B|SEG_C                        ),  // 7
+    (SEG_A|SEG_B|SEG_C|SEG_D|SEG_E|SEG_F|SEG_G),  // 8
+    (SEG_A|SEG_B|SEG_C|SEG_D|      SEG_F|SEG_G),  // 9
+    (SEG_A|SEG_B|SEG_C|      SEG_E|SEG_F|SEG_G),  // A
+    (            SEG_C|SEG_D|SEG_E|SEG_F|SEG_G),  // b
+    (SEG_A|            SEG_D|SEG_E            ),  // C
+    (      SEG_B|SEG_C|SEG_D|SEG_E|      SEG_G),  // d
+    (SEG_A|            SEG_D|SEG_E|SEG_F|SEG_G),  // E
+    (SEG_A|                  SEG_E|SEG_F|SEG_G),  // E
+};
 
 #define SEG_MINUS       SEG_G
 #define SEG_LETTER_r    (SEG_E|SEG_G)
 #define SEG_LETTER_i    SEG_E
-#define SEG_LETTER_E    (SEG_A|SEG_D|SEG_E|SEG_F|SEG_G)
+#define SEG_LETTER_E    seg_digit[0xE]
+#define SEG_LETTER_C    seg_digit[0xC]
 
 enum _enDisplayErrors {
     ERROR_INIT_SD_ERR = 0,
@@ -109,8 +131,9 @@ typedef union {
   struct {
     uint16_t val1;      // Значение 1
     uint16_t val2;      // Значение 2
+    uint8_t relay;
   } values;
-  uint8_t buf[4];         // Буфер приема данных
+  uint8_t buf[1];         // Буфер приема данных
   uint16_t iVal;
 } content_t;
 
@@ -156,60 +179,21 @@ config_st config;                         // <- global configuration object
 //----------------------------------------------------------------------------------------------------
 
 // Loads the configuration file
-inline void loadConfiguration( void ) {
-//  // Open file for reading
-//  File cfg_file = SD.open("config.txt");
-//
-//  // Allocate a temporary JsonDocument
-//  // Don't forget to change the capacity to match your requirements.
-//  // Use arduinojson.org/v6/assistant to compute the capacity.
-//  //StaticJsonDocument<64> doc;
-//  DynamicJsonDocument doc(64);
-//
-//  // Deserialize the JSON document
-//  DeserializationError error = deserializeJson(doc, cfg_file);
-//
-//  // Close the file (Curiously, File's destructor doesn't close the file)
-//  cfg_file.close();
-//  
-//  if (error) {
-//      Serial.println("Failed to read config file! Using default configuration");
-      config.regMode = DEFAULT_MODE;
-#ifdef TEST
-      config.vMax = 200;
-      config.vMin = 5;
-#else
-      if( config.regMode == 'I' ) {
-          config.vMax = 2000;
-          config.vMin = 0;
-      } else if( config.regMode == 'R' ) {
-          config.vMax = 200;
-          config.vMin = 0;
-      }
-#endif
-//  } else {
-//      // Copy values from the JsonDocument to the Config
-//      const char* regMode = doc["regMode"] | "R";
-//      config.regMode = 'R';
-//      if( regMode[1] == 0 ) {
-//        if( regMode[0] == 'I' || regMode[0] == 'i' ) {
-//          config.regMode = 'I';
-//        }
-//    //    else if( regMode[0] = 'R' || regMode[0] == 'r' ) {
-//    //      config.regMode = 'R';
-//    //    } 
-//      } 
-//      config.vMax = doc["vMax"] | 0xFFFF;
-//      config.vMin = doc["vMin"] | 0;
-//  }
-////  Serial.print( "regMode: " );
-////  Serial.print( config.regMode, DEC );
-////  Serial.print( "\nvMax: " );
-////  Serial.print( config.vMax, DEC );
-////  Serial.print( "\nvMin: " );
-////  Serial.print( config.vMin, DEC );
-////  Serial.println();
-}
+//inline void loadConfiguration( void ) {
+//      config.regMode = DEFAULT_MODE;
+//#ifdef TEST
+//      config.vMax = 200;
+//      config.vMin = 5;
+//#else
+//      if( config.regMode == 'I' ) {
+//          config.vMax = 2000;
+//          config.vMin = 0;
+//      } else if( config.regMode == 'R' ) {
+//          config.vMax = 200;
+//          config.vMin = 0;
+//      }
+//#endif
+//}
 
 // Настройка таймера для моргания в режиме установки времени
 void blink_timer_start( void ) {
@@ -605,11 +589,11 @@ void loop() {
                             // Сохраняем данные в файл
                             sprintf( 
                                 log_str, 
-                                "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
+                                "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d\n",
                                 unix_time,
                                 now.year(), now.month(), now.day(),
                                 now.hour(), now.minute(), now.second(),
-                                content.values.val1, content.values.val2
+                                content.values.val1, content.values.val2, content.values.relay&0x02, content.values.relay&0x01
                             );
 #ifndef TEST
                             myFile.print( log_str );
@@ -724,31 +708,21 @@ void loop() {
             // Serial.print("\nSTART/STOP pressed.\n");
             if( sd_rec_enable ) 
             {
-                led_on(LED_REC);
-                for( i = 0; i < 10000; i++ ) 
+                for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
                 {
-                    // Генерируем имя файла в виде "reg_XXXX.csv", где XXXX=i
-                    sprintf( filename, "reg_%04d.csv", i );
+                    // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
+                    sprintf( filename, "reg_%с%03d.csv", config.regMode, i );
                     if( !SD.exists(filename) ) 
                     {
                         // Файл с таким именем еще не существует, используем его
                         break;
                     }
                 }
-                if( i == 10000 ) 
+                if( i == FILE_NUMBER_MAX ) 
                 {
-                    // Нет свободных имен файлов
-                    // Serial.println("Error! No more file names! Please remove files from SD card.");
-                    // Виснем моргая светодиодом c периодом 1сек
-                    // while(1) 
-                    // {
-                    //     led_on(LED_REC);
-                    //     delay(500);
-                    //     led_off(LED_REC);
-                    //     delay(500);
-                    // }
                     display_error(ERROR_FILE_NUMBER);
                 }
+                led_on(LED_REC);
                 File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                 if( myFile ) {
                     switch( config.regMode ) {
