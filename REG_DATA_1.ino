@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.48"
+#define VERSION       "1.49"
 #define DEFAULT_MODE  'R'
 //#define TEST
 
@@ -126,7 +126,7 @@ enum time_set_en {
 //----------------------------------------------------------------------------------------------------
 // Структуры данных
 //----------------------------------------------------------------------------------------------------
-
+#pragma pack push(1)
 typedef union {
   struct {
     uint16_t val1;      // Значение 1
@@ -136,7 +136,7 @@ typedef union {
   uint8_t buf[1];         // Буфер приема данных
   uint16_t iVal;
 } content_t;
-
+#pragma pack pop()
 //----------------------------------------------------------------------------------------------------
 // Глобальные переменные
 //----------------------------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ typedef union {
 content_t content;
 uint8_t content_byte_index; // Индекс буфера приема данных
 
-char filename[14];          // Хранит имя файла для сохранения данных
+char filename[13];          // Хранит имя файла для сохранения данных
 
 uint8_t time_set_state;
 
@@ -593,7 +593,8 @@ void loop() {
                                 unix_time,
                                 now.year(), now.month(), now.day(),
                                 now.hour(), now.minute(), now.second(),
-                                content.values.val1, content.values.val2, content.values.relay&0x02, content.values.relay&0x01
+                                content.values.val1, content.values.val2, 
+                                content.values.relay&0x01, content.values.relay&0x02
                             );
 #ifndef TEST
                             myFile.print( log_str );
@@ -711,7 +712,7 @@ void loop() {
                 for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
                 {
                     // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
-                    sprintf( filename, "reg_%с%03d.csv", config.regMode, i );
+                    sprintf( filename, "REG_%c%03d.CSV", config.regMode, i );
                     if( !SD.exists(filename) ) 
                     {
                         // Файл с таким именем еще не существует, используем его
@@ -725,10 +726,13 @@ void loop() {
                 led_on(LED_REC);
                 File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                 if( myFile ) {
+                    myFile.print( "File: " );
+                    myFile.print( filename );
+                    myFile.print( "\n" );
                     switch( config.regMode ) {
                         case 'I': myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
                         case 'R':
-                        default:  myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +\n" ); break;
+                        default:  myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +,Relay 1, Relay 2\n" ); break;
                     }
                     myFile.close();   // Закрываем файл
                 }
