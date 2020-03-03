@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.47"
+#define VERSION       "1.48"
 #define DEFAULT_MODE  'R'
 //#define TEST
 
