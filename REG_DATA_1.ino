@@ -7,8 +7,8 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.50"
-#define DEFAULT_MODE  'R'
+#define VERSION       "1.51"
+#define DEFAULT_MODE  'I'
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -58,9 +58,10 @@
 #define ntohs(x)            htons(x)
 
 // Управление светодиодами
-#define led_init(pin)       pinMode(pin, OUTPUT);       // Инициализация LED
-#define led_off(pin)        digitalWrite(pin, LOW);     // Погасить LED (LOW is the voltage level)
-#define led_on(pin)         digitalWrite(pin, HIGH);    // Зажечь LED (HIGH is the voltage level)
+#define INFINITE_CYCLES     0xFF
+#define led_init(pin)       pinMode(pin, OUTPUT)       // Инициализация LED
+#define led_off(pin)        digitalWrite(pin, LOW)     // Погасить LED (LOW is the voltage level)
+#define led_on(pin, cycles) do {digitalWrite(pin, HIGH); led_wr_timer = cycles;} while(0)    // Зажечь LED (HIGH is the voltage level) на cycles циклов таймера 1
 
 
 #define DISPLAY_COLON   0xE0
@@ -208,6 +209,10 @@ void blink_timer_start( void ) {
 void timer_isr( void ) {
     blink_time = true;
     blinked = !blinked;
+    if( led_wr_timer!= INFINITE_CYCLES ) {
+        if(led_wr_timer) led_wr_timer--;
+        else led_off(LED_WR);
+    }
 }
 
 // Обработчик прерывания тактовых импульсов сигнала часов
@@ -281,7 +286,7 @@ void display_error(uint8_t err_code) {
     }
     //display.setSegments(t_seg);
     while (1) {
-        led_on(LED_REC);
+        led_on(LED_REC, INFINITE_CYCLES);
         display.setBrightness(0x0F);
         display.setSegments(t_seg);
         delay(led_delay);
@@ -560,8 +565,11 @@ void loop() {
     if( config.regMode == 'R' ) 
     {
         #define SIZE_OF_CONTENT 5
-        read_len = Serial.readBytes( &content.buf[content_byte_index], SIZE_OF_CONTENT /*sizeof(content)*/ - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        //read_len = Serial.readBytes( &content.buf[content_byte_index], SIZE_OF_CONTENT /*sizeof(content)*/ - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        read_len = Serial.readBytes( &content.buf[content_byte_index], 1 ); // Читаем из порта нужное количество байт или выходим по таймауту
     
+        led_on(LED_WR, 2);
+
         if( read_len ) {                                        // Если что-то считали из порта
             content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
             if( content_byte_index == SIZE_OF_CONTENT /*sizeof(content)*/ ) {         // Если данные готовы к сохранению
@@ -574,12 +582,8 @@ void loop() {
                        content.values.val2 <= config.vMin )  )
                 {
             
-                    // sprintf( log_str, "Unix Time: %ld\nData: %d, %d\n", unix_time, content.values.val1, content.values.val2 );
-                    // Serial.print( log_str );
 #ifndef TEST
                     if( sd_rec_enable ) {              // Если разрешена запись на SD карту
-                        led_on(LED_WR);
-                        led_wr_timer = 5;
 #endif
                         DateTime now = DateTime( unix_time );
 #ifndef TEST
@@ -601,7 +605,7 @@ void loop() {
                             myFile.print( log_str );
                             myFile.close();   // Закрываем файл
                         } 
-                        led_off(LED_WR);
+                        //led_off(LED_WR);
                     } 
 #else
                 Serial.print( log_str );
@@ -637,7 +641,7 @@ void loop() {
                     (content.iVal&IVALUE_MASK) <= config.vMax && 
                     (content.iVal&IVALUE_MASK) >= config.vMin ) 
                 {              // Если разрешена запись на SD карту
-                    led_on(LED_WR);
+                    led_on(LED_WR, INFINITE_CYCLES);
                     
                     DateTime now = DateTime( unix_time );
 
@@ -724,18 +728,23 @@ void loop() {
                 {
                     display_error(ERROR_FILE_NUMBER);
                 }
-                led_on(LED_REC);
+                led_on(LED_REC, INFINITE_CYCLES);
                 File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                 if( myFile ) {
                     myFile.print( "File: " );
                     myFile.print( filename );
-                    myFile.print( "\nsizeof(content): ");
+                    myFile.print( "\nsizeof(content): " );
                     itoa( sizeof(content), log_str, 10 );
+                    myFile.print( log_str );
                     myFile.print( "\n" );
                     switch( config.regMode ) {
-                        case 'I': myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
+                        case 'I': 
+                            myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
+                            break;
                         case 'R':
-                        default:  myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +,Relay 1, Relay 2\n" ); break;
+                        default: 
+                            myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +,Relay 1, Relay 2\n" ); 
+                            break;
                     }
                     myFile.close();   // Закрываем файл
                 }
