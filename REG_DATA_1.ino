@@ -7,8 +7,8 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.51"
-#define DEFAULT_MODE  'I'
+#define VERSION       "1.52"
+#define DEFAULT_MODE  'R'
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -134,7 +134,7 @@ typedef union {
     uint16_t val2;      // Значение 2
     uint8_t relay;
   } values;
-  uint8_t buf[1];         // Буфер приема данных
+  uint8_t buf[5];         // Буфер приема данных
   uint16_t iVal;
 } content_t;
 #pragma pack pop()
@@ -209,7 +209,7 @@ void blink_timer_start( void ) {
 void timer_isr( void ) {
     blink_time = true;
     blinked = !blinked;
-    if( led_wr_timer!= INFINITE_CYCLES ) {
+    if( led_wr_timer != INFINITE_CYCLES ) {
         if(led_wr_timer) led_wr_timer--;
         else led_off(LED_WR);
     }
@@ -571,6 +571,7 @@ void loop() {
         led_on(LED_WR, 2);
 
         if( read_len ) {                                        // Если что-то считали из порта
+            led_on(LED_WR, 2);
             content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
             if( content_byte_index == SIZE_OF_CONTENT /*sizeof(content)*/ ) {         // Если данные готовы к сохранению
                 content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
