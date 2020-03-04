@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.49"
+#define VERSION       "1.50"
 #define DEFAULT_MODE  'R'
 //#define TEST
 
@@ -144,7 +144,7 @@ typedef union {
 content_t content;
 uint8_t content_byte_index; // Индекс буфера приема данных
 
-char filename[13];          // Хранит имя файла для сохранения данных
+char filename[14];          // Хранит имя файла для сохранения данных
 
 uint8_t time_set_state;
 
@@ -559,11 +559,12 @@ void loop() {
     
     if( config.regMode == 'R' ) 
     {
-        read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        #define SIZE_OF_CONTENT 5
+        read_len = Serial.readBytes( &content.buf[content_byte_index], SIZE_OF_CONTENT /*sizeof(content)*/ - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
     
         if( read_len ) {                                        // Если что-то считали из порта
             content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
-            if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
+            if( content_byte_index == SIZE_OF_CONTENT /*sizeof(content)*/ ) {         // Если данные готовы к сохранению
                 content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
                 content.values.val2 = ntohs(content.values.val2);
     
@@ -728,6 +729,8 @@ void loop() {
                 if( myFile ) {
                     myFile.print( "File: " );
                     myFile.print( filename );
+                    myFile.print( "\nsizeof(content): ");
+                    itoa( sizeof(content), log_str, 10 );
                     myFile.print( "\n" );
                     switch( config.regMode ) {
                         case 'I': myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
