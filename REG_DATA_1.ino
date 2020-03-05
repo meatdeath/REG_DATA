@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.53"
+#define VERSION       "1.54"
 #define DEFAULT_MODE  'R'
 //#define TEST
 
@@ -599,7 +599,8 @@ void loop() {
                                 now.year(), now.month(), now.day(),
                                 now.hour(), now.minute(), now.second(),
                                 content.values.val1, content.values.val2, 
-                                content.values.relay&0x01, content.values.relay&0x02
+                                (content.values.relay&0x01)?1:0, 
+                                (content.values.relay&0x02)?1:0
                             );
 #ifndef TEST
                             myFile.print( log_str );
@@ -733,10 +734,10 @@ void loop() {
                 if( myFile ) {
                     myFile.print( "File: " );
                     myFile.print( filename );
-                    myFile.print( "\nsizeof(content): " );
-                    itoa( sizeof(content), log_str, 10 );
-                    myFile.print( log_str );
-                    myFile.print( "\n" );
+                    // myFile.print( "\nsizeof(content): " );
+                    // itoa( sizeof(content), log_str, 10 );
+                    // myFile.print( log_str );
+                    // myFile.print( "\n" );
                     switch( config.regMode ) {
                         case 'I': 
                             myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
