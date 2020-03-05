@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.52"
+#define VERSION       "1.53"
 #define DEFAULT_MODE  'R'
 //#define TEST
 
@@ -335,7 +335,7 @@ void setup() {
         config.vMax = 2000;
         config.vMin = 0;
     } else if( config.regMode == 'R' ) {
-        config.vMax = 200;
+        config.vMax = 824;
         config.vMin = 0;
     }
 
@@ -565,15 +565,14 @@ void loop() {
     if( config.regMode == 'R' ) 
     {
         #define SIZE_OF_CONTENT 5
-        //read_len = Serial.readBytes( &content.buf[content_byte_index], SIZE_OF_CONTENT /*sizeof(content)*/ - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
-        read_len = Serial.readBytes( &content.buf[content_byte_index], 1 ); // Читаем из порта нужное количество байт или выходим по таймауту
-    
-        led_on(LED_WR, 2);
+        read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        //read_len = Serial.readBytes( &content.buf[content_byte_index], 1 ); // Читаем из порта нужное количество байт или выходим по таймауту
 
         if( read_len ) {                                        // Если что-то считали из порта
             led_on(LED_WR, 2);
             content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
-            if( content_byte_index == SIZE_OF_CONTENT /*sizeof(content)*/ ) {         // Если данные готовы к сохранению
+            //if( content_byte_index == SIZE_OF_CONTENT /*sizeof(content)*/ ) {         // Если данные готовы к сохранению
+            if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
                 content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
                 content.values.val2 = ntohs(content.values.val2);
     
