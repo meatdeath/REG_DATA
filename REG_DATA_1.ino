@@ -7,8 +7,8 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.54"
-#define DEFAULT_MODE  'R'
+#define VERSION       "1.55"
+#define DEFAULT_MODE  'I'
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -744,7 +744,7 @@ void loop() {
                             break;
                         case 'R':
                         default: 
-                            myFile.print( "Unix time,Date,Time,Resistanse -,Resistanse +,Relay 1, Relay 2\n" ); 
+                            myFile.print( "Unix time,Date,Time,-U,+U,-K,+K\n" ); 
                             break;
                     }
                     myFile.close();   // Закрываем файл
