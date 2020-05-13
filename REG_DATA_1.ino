@@ -7,8 +7,11 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.55"
-#define DEFAULT_MODE  'I'
+#define VERSION       "1.56"
+
+#define U_MODE 'U'
+#define I_MODE 'I'
+#define DEFAULT_MODE  U_MODE
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -186,10 +189,10 @@ config_st config;                         // <- global configuration object
 //      config.vMax = 200;
 //      config.vMin = 5;
 //#else
-//      if( config.regMode == 'I' ) {
+//      if( config.regMode == I_MODE ) {
 //          config.vMax = 2000;
 //          config.vMin = 0;
-//      } else if( config.regMode == 'R' ) {
+//      } else if( config.regMode == U_MODE ) {
 //          config.vMax = 200;
 //          config.vMin = 0;
 //      }
@@ -323,18 +326,18 @@ void setup() {
     config.regMode = DEFAULT_MODE;
     // Если при старте нажата кнопка CHANGE(ИЗМЕНИТЬ), то меняем режим работы устройства
     if( digitalRead(BUTTON2_PIN) == BUTTON_ACTIVE ) {
-        if( config.regMode == 'R' ) {
-            config.regMode = 'I';
+        if( config.regMode == U_MODE ) {
+            config.regMode = I_MODE;
         }
         else {
-            config.regMode = 'R';
+            config.regMode = U_MODE;
         }
     }
         
-    if( config.regMode == 'I' ) {
+    if( config.regMode = I_MODE ) {
         config.vMax = 2000;
         config.vMin = 0;
-    } else if( config.regMode == 'R' ) {
+    } else if( config.regMode == U_MODE ) {
         config.vMax = 824;
         config.vMin = 0;
     }
@@ -356,7 +359,7 @@ void setup() {
     display.clear();
     
     uint8_t t_seg[4] = { 
-        (config.regMode=='R')?SEG_LETTER_r:SEG_LETTER_i, 
+        (config.regMode==U_MODE)?SEG_LETTER_r:SEG_LETTER_i, 
         display.encodeDigit(VERSION[0]-'0'), 
         display.encodeDigit(VERSION[2]-'0'), 
         display.encodeDigit(VERSION[3]-'0') };
@@ -433,6 +436,44 @@ void setup() {
     Serial.println( "Initialization DONE." );
 }
 
+void CreateNewFile(void) {
+    int i;
+    for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
+    {
+        // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
+        sprintf( filename, "%c_REG%03d.CSV", config.regMode, i );
+        if( !SD.exists(filename) ) 
+        {
+            // Файл с таким именем еще не существует, используем его
+            break;
+        }
+    }
+    if( i == FILE_NUMBER_MAX ) 
+    {
+        display_error(ERROR_FILE_NUMBER);
+    }
+    led_on(LED_REC, INFINITE_CYCLES);
+    File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+    if( myFile ) {
+        myFile.print( "File: " );
+        myFile.print( filename );
+        // myFile.print( "\nsizeof(content): " );
+        // itoa( sizeof(content), log_str, 10 );
+        // myFile.print( log_str );
+        // myFile.print( "\n" );
+        switch( config.regMode ) {
+            case I_MODE: 
+                myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
+                break;
+            case U_MODE:
+            default: 
+                myFile.print( "Unix time,Date,Time,-U,+U,-K,+K\n" ); 
+                break;
+        }
+        myFile.close();   // Закрываем файл
+    }
+}
+
 
 // -------------------------------------------------------------------------------------------------------------
 // Функция вызывается постоянно во время работы МК
@@ -446,6 +487,7 @@ void loop() {
     uint8_t day    = time_to_set.day();
     uint8_t hour   = time_to_set.hour();
     uint8_t minute = time_to_set.minute();
+    uint8_t last_hour = hour;
 
 #ifndef TEST
     if( time_set_state != TIME_SET_IDLE ) {
@@ -562,7 +604,7 @@ void loop() {
 
     uint8_t read_len = 0;
     
-    if( config.regMode == 'R' ) 
+    if( config.regMode == U_MODE ) 
     {
         #define SIZE_OF_CONTENT 5
         read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
@@ -586,6 +628,20 @@ void loop() {
                     if( sd_rec_enable ) {              // Если разрешена запись на SD карту
 #endif
                         DateTime now = DateTime( unix_time );
+                        uint8_t hour = now.hour();
+                        if( (
+                                hour == 0 || 
+                                hour == 5 || 
+                                hour == 10 || 
+                                hour == 15 || 
+                                hour == 20
+                            ) && last_hour != hour ) {
+#ifndef TEST
+                            CreateNewFile();
+#endif
+                        }
+                        last_hour = now.hour();
+                        
 #ifndef TEST
                         File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
                         if( myFile ) 
@@ -617,7 +673,7 @@ void loop() {
         }
     } 
     else 
-    if( config.regMode == 'I' ) 
+    if( config.regMode == I_MODE ) 
     {
         read_len = Serial.readBytes( &content.buf[content_byte_index], 2 - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
 
@@ -715,40 +771,43 @@ void loop() {
             // Serial.print("\nSTART/STOP pressed.\n");
             if( sd_rec_enable ) 
             {
-                for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
-                {
-                    // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
-                    sprintf( filename, "REG_%c%03d.CSV", config.regMode, i );
-                    if( !SD.exists(filename) ) 
-                    {
-                        // Файл с таким именем еще не существует, используем его
-                        break;
-                    }
-                }
-                if( i == FILE_NUMBER_MAX ) 
-                {
-                    display_error(ERROR_FILE_NUMBER);
-                }
-                led_on(LED_REC, INFINITE_CYCLES);
-                File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-                if( myFile ) {
-                    myFile.print( "File: " );
-                    myFile.print( filename );
-                    // myFile.print( "\nsizeof(content): " );
-                    // itoa( sizeof(content), log_str, 10 );
-                    // myFile.print( log_str );
-                    // myFile.print( "\n" );
-                    switch( config.regMode ) {
-                        case 'I': 
-                            myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
-                            break;
-                        case 'R':
-                        default: 
-                            myFile.print( "Unix time,Date,Time,-U,+U,-K,+K\n" ); 
-                            break;
-                    }
-                    myFile.close();   // Закрываем файл
-                }
+                CreateNewFile();
+                DateTime now = DateTime( unix_time );
+                last_hour = now.hour();
+                // for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
+                // {
+                //     // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
+                //     sprintf( filename, "REG_%c%03d.CSV", config.regMode, i );
+                //     if( !SD.exists(filename) ) 
+                //     {
+                //         // Файл с таким именем еще не существует, используем его
+                //         break;
+                //     }
+                // }
+                // if( i == FILE_NUMBER_MAX ) 
+                // {
+                //     display_error(ERROR_FILE_NUMBER);
+                // }
+                // led_on(LED_REC, INFINITE_CYCLES);
+                // File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+                // if( myFile ) {
+                //     myFile.print( "File: " );
+                //     myFile.print( filename );
+                //     // myFile.print( "\nsizeof(content): " );
+                //     // itoa( sizeof(content), log_str, 10 );
+                //     // myFile.print( log_str );
+                //     // myFile.print( "\n" );
+                //     switch( config.regMode ) {
+                //         case I_MODE: 
+                //             myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
+                //             break;
+                //         case U_MODE:
+                //         default: 
+                //             myFile.print( "Unix time,Date,Time,-U,+U,-K,+K\n" ); 
+                //             break;
+                //     }
+                //     myFile.close();   // Закрываем файл
+                // }
             }
             else {
                 led_off(LED_REC);
