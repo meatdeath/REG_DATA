@@ -11,7 +11,7 @@
 
 #define U_MODE 'U'
 #define I_MODE 'I'
-#define DEFAULT_MODE  I_MODE
+#define DEFAULT_MODE  U_MODE
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -425,7 +425,9 @@ void setup() {
 //    }
 #endif
 
+    // автостарт записи
     sd_rec_enable = true;
+    CreateNewFile();
 
     // Загрузка конфигурации из файла с SD карты
     // loadConfiguration();
