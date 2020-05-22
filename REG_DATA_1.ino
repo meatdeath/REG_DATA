@@ -7,11 +7,11 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.56"
+#define VERSION       "1.57"
 
 #define U_MODE 'U'
 #define I_MODE 'I'
-#define DEFAULT_MODE  U_MODE
+#define DEFAULT_MODE  I_MODE
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -130,17 +130,19 @@ enum time_set_en {
 //----------------------------------------------------------------------------------------------------
 // Структуры данных
 //----------------------------------------------------------------------------------------------------
-#pragma pack push(1)
+#pragma pack(1)
 typedef union {
   struct {
     uint16_t val1;      // Значение 1
     uint16_t val2;      // Значение 2
     uint8_t relay;
+    uint16_t r_val1;
+    uint16_t r_val2;
   } values;
-  uint8_t buf[5];         // Буфер приема данных
+  uint8_t buf[7];         // Буфер приема данных
   uint16_t iVal;
 } content_t;
-#pragma pack pop()
+#pragma pack()
 //----------------------------------------------------------------------------------------------------
 // Глобальные переменные
 //----------------------------------------------------------------------------------------------------
@@ -307,8 +309,6 @@ void display_error(uint8_t err_code) {
 // -------------------------------------------------------------------------------------------------------------
 
 void setup() {
-    uint16_t i;
-  
     content.values.val1 = 0;                    // Очищаем содержимое всех значений
     content.values.val2 = 0;
     content_byte_index = 0;                     // Начинаем с приема первого байта
@@ -334,7 +334,7 @@ void setup() {
         }
     }
         
-    if( config.regMode = I_MODE ) {
+    if( config.regMode == I_MODE ) {
         config.vMax = 2000;
         config.vMin = 0;
     } else if( config.regMode == U_MODE ) {
@@ -425,9 +425,7 @@ void setup() {
 //    }
 #endif
 
-#ifdef TEST
     sd_rec_enable = true;
-#endif
 
     // Загрузка конфигурации из файла с SD карты
     // loadConfiguration();
@@ -467,7 +465,7 @@ void CreateNewFile(void) {
                 break;
             case U_MODE:
             default: 
-                myFile.print( "Unix time,Date,Time,-U,+U,-K,+K\n" ); 
+                myFile.print( "Unix time,Date,Time,-U,+U,-K,+K,-R,+R\n" ); 
                 break;
         }
         myFile.close();   // Закрываем файл
@@ -488,6 +486,8 @@ void loop() {
     uint8_t hour   = time_to_set.hour();
     uint8_t minute = time_to_set.minute();
     uint8_t last_hour = hour;
+    uint16_t last_u_val1 = 0;
+    uint16_t last_u_val2 = 0;
 
 #ifndef TEST
     if( time_set_state != TIME_SET_IDLE ) {
@@ -606,18 +606,28 @@ void loop() {
     
     if( config.regMode == U_MODE ) 
     {
-        #define SIZE_OF_CONTENT 5
-        read_len = Serial.readBytes( &content.buf[content_byte_index], sizeof(content) - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
-        //read_len = Serial.readBytes( &content.buf[content_byte_index], 1 ); // Читаем из порта нужное количество байт или выходим по таймауту
+        #define U_CONTENT_SIZE 5
+        read_len = Serial.readBytes( &content.buf[content_byte_index], U_CONTENT_SIZE - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        //read_len = Serial.readBytes( &content.buf[content_byte_index], 1 ); // Читаем из порта 1 байт или выходим по таймауту
 
-        if( read_len ) {                                        // Если что-то считали из порта
+        if( read_len ) {                                            // Если что-то считали из порта
             led_on(LED_WR, 2);
-            content_byte_index += read_len;                       // Увеличиваем общее количество считанных байт
-            //if( content_byte_index == SIZE_OF_CONTENT /*sizeof(content)*/ ) {         // Если данные готовы к сохранению
-            if( content_byte_index == sizeof(content) ) {         // Если данные готовы к сохранению
+            content_byte_index += read_len;                         // Увеличиваем общее количество считанных байт
+            
+            if( content_byte_index == U_CONTENT_SIZE ) {           // Если данные готовы к сохранению
                 content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
                 content.values.val2 = ntohs(content.values.val2);
     
+                if( content.values.relay&0x20 ) {                   // проверяем, являются ли данные сопротивлением изоляции
+                    content.values.r_val1 = content.values.val1;    // заполняем ячейки сопротивления изоляции
+                    content.values.r_val2 = content.values.val2;
+                    content.values.val1 = last_u_val1;              // запоняем напряжение из предыдущих данных
+                    content.values.val2 = last_u_val2;
+                } else {
+                    last_u_val1 = content.values.val1;
+                    last_u_val2 = content.values.val2;
+                }
+
                 if( !( content.values.val1 >= config.vMax || 
                        content.values.val1 <= config.vMin ||
                        content.values.val2 >= config.vMax || 
@@ -647,16 +657,26 @@ void loop() {
                         if( myFile ) 
                         {
 #endif
+                            char r_str[13] = "";
+                            if( content.values.relay&0x20 ) {
+                                sprintf( 
+                                    r_str,
+                                    ",%d,%d",
+                                    content.values.r_val1,
+                                    content.values.r_val2
+                                );
+                            }
                             // Сохраняем данные в файл
                             sprintf( 
                                 log_str, 
-                                "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d\n",
+                                "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d%s\n",
                                 unix_time,
                                 now.year(), now.month(), now.day(),
                                 now.hour(), now.minute(), now.second(),
                                 content.values.val1, content.values.val2, 
                                 (content.values.relay&0x01)?1:0, 
-                                (content.values.relay&0x02)?1:0
+                                (content.values.relay&0x02)?1:0,
+                                r_str 
                             );
 #ifndef TEST
                             myFile.print( log_str );
@@ -665,7 +685,7 @@ void loop() {
                         //led_off(LED_WR);
                     } 
 #else
-                Serial.print( log_str );
+                    Serial.print( log_str );
 #endif
                 }
                 content_byte_index = 0;                             // Переходим в состояние приема первого байта
@@ -675,7 +695,8 @@ void loop() {
     else 
     if( config.regMode == I_MODE ) 
     {
-        read_len = Serial.readBytes( &content.buf[content_byte_index], 2 - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        #define I_CONTENT_SIZE 2
+        read_len = Serial.readBytes( &content.buf[content_byte_index], I_CONTENT_SIZE - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
 
         if( read_len != 0 ) {
             switch(content_byte_index) {
@@ -689,8 +710,7 @@ void loop() {
                     break;
             }
             content_byte_index += read_len;
-            if( content_byte_index >= 2 ) {
-                content_byte_index = 0;
+            if( content_byte_index >= I_CONTENT_SIZE ) {
               
                 content.iVal = ntohs(content.iVal);
 #define IVALUE_MASK 0x7FF
@@ -732,6 +752,7 @@ void loop() {
                     led_off(LED_WR);
                 }
 
+                content_byte_index = 0;
             }
         }
     }
@@ -774,40 +795,8 @@ void loop() {
                 CreateNewFile();
                 DateTime now = DateTime( unix_time );
                 last_hour = now.hour();
-                // for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
-                // {
-                //     // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
-                //     sprintf( filename, "REG_%c%03d.CSV", config.regMode, i );
-                //     if( !SD.exists(filename) ) 
-                //     {
-                //         // Файл с таким именем еще не существует, используем его
-                //         break;
-                //     }
-                // }
-                // if( i == FILE_NUMBER_MAX ) 
-                // {
-                //     display_error(ERROR_FILE_NUMBER);
-                // }
-                // led_on(LED_REC, INFINITE_CYCLES);
-                // File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-                // if( myFile ) {
-                //     myFile.print( "File: " );
-                //     myFile.print( filename );
-                //     // myFile.print( "\nsizeof(content): " );
-                //     // itoa( sizeof(content), log_str, 10 );
-                //     // myFile.print( log_str );
-                //     // myFile.print( "\n" );
-                //     switch( config.regMode ) {
-                //         case I_MODE: 
-                //             myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
-                //             break;
-                //         case U_MODE:
-                //         default: 
-                //             myFile.print( "Unix time,Date,Time,-U,+U,-K,+K\n" ); 
-                //             break;
-                //     }
-                //     myFile.close();   // Закрываем файл
-                // }
+                last_u_val1 = 0;
+                last_u_val2 = 0;
             }
             else {
                 led_off(LED_REC);
