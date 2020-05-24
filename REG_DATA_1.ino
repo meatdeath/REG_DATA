@@ -3,15 +3,16 @@
  * :Author: Vladimir Novac
  * :Email: vladimir.novac.1980@gmail.com
  * :Date created: 26/12/2018
- * :Modified Date: 02/03/2019
+ * :Modified Date: 24/05/2020
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.57"
+#define VERSION       "1.59"
 
 #define U_MODE 'U'
 #define I_MODE 'I'
 #define DEFAULT_MODE  U_MODE
+
 //#define TEST
 
 // ---------------------------------------------------------------------------------------------------
@@ -132,15 +133,15 @@ enum time_set_en {
 //----------------------------------------------------------------------------------------------------
 #pragma pack(1)
 typedef union {
-  struct {
-    uint16_t val1;      // Значение 1
-    uint16_t val2;      // Значение 2
-    uint8_t relay;
-    uint16_t r_val1;
-    uint16_t r_val2;
-  } values;
-  uint8_t buf[7];         // Буфер приема данных
-  uint16_t iVal;
+    struct {
+        uint16_t val1;      // Значение 1
+        uint16_t val2;      // Значение 2
+        uint8_t relay;
+        uint16_t r_val1;
+        uint16_t r_val2;
+    } values;
+    uint8_t buf[7];         // Буфер приема данных
+    uint16_t iVal;
 } content_t;
 #pragma pack()
 //----------------------------------------------------------------------------------------------------
@@ -166,16 +167,18 @@ volatile bool time_print_time;
 volatile bool time_print_point;
 volatile uint8_t led_wr_timer;
 
+uint8_t last_hour;
+
 #ifndef TEST
 TM1637Display display(DISPLAY_CLK, DISPLAY_DIO);
 #endif
 
-char log_str[50];
+char log_str[65];
 
 struct config_st {
-  char regMode;
-  uint16_t vMin;
-  uint16_t vMax;
+    char regMode;
+    uint16_t vMin;
+    uint16_t vMax;
 };
 
 config_st config;                         // <- global configuration object
@@ -183,23 +186,6 @@ config_st config;                         // <- global configuration object
 //----------------------------------------------------------------------------------------------------
 // Вспомогательные функции
 //----------------------------------------------------------------------------------------------------
-
-// Loads the configuration file
-//inline void loadConfiguration( void ) {
-//      config.regMode = DEFAULT_MODE;
-//#ifdef TEST
-//      config.vMax = 200;
-//      config.vMin = 5;
-//#else
-//      if( config.regMode == I_MODE ) {
-//          config.vMax = 2000;
-//          config.vMin = 0;
-//      } else if( config.regMode == U_MODE ) {
-//          config.vMax = 200;
-//          config.vMin = 0;
-//      }
-//#endif
-//}
 
 // Настройка таймера для моргания в режиме установки времени
 void blink_timer_start( void ) {
@@ -263,7 +249,6 @@ void fileDateTimeCb(uint16_t* date, uint16_t* time) {
     DateTime now = DateTime( unix_time );
     // return date using FAT_DATE macro to format fields
     *date = FAT_DATE( now.year(), now.month(), now.day() );
-  
     // return time using FAT_TIME macro to format fields
     *time = FAT_TIME( now.hour(), now.minute(), now.second() );
 }
@@ -303,6 +288,36 @@ void display_error(uint8_t err_code) {
     }
 }
 #endif
+
+void CreateNewFile(void) {
+    int i;
+    for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
+    {
+        // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
+        sprintf( filename, "%c_REG%03d.CSV", config.regMode, i );
+        if( !SD.exists(filename) ) 
+        {
+            // Файл с таким именем еще не существует, используем его
+            break;
+        }
+    }
+    if( i == FILE_NUMBER_MAX ) 
+    {
+        display_error(ERROR_FILE_NUMBER);
+    }
+    led_on(LED_REC, INFINITE_CYCLES);
+    File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+    if( myFile ) {
+        myFile.print( "File: " );
+        myFile.print( filename );
+        switch( config.regMode ) {
+            case I_MODE: myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
+            case U_MODE: myFile.print( "Unix time,Date,Time,-U,+U,-K,+K,-R,+R,Hex Dump\n" );  break;
+            default:     myFile.print( "Error! Unknown mode!\n" );
+        }
+        myFile.close();   // Закрываем файл
+    }
+}
 
 // -------------------------------------------------------------------------------------------------------------
 // Начальная установка и настройка при старте МК
@@ -428,6 +443,8 @@ void setup() {
     // автостарт записи
     sd_rec_enable = true;
     CreateNewFile();
+    DateTime now = DateTime( unix_time );
+    last_hour = now.hour();
 
     // Загрузка конфигурации из файла с SD карты
     // loadConfiguration();
@@ -436,63 +453,21 @@ void setup() {
     Serial.println( "Initialization DONE." );
 }
 
-void CreateNewFile(void) {
-    int i;
-    for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
-    {
-        // Генерируем имя файла в виде "reg_MXXX.csv", где M-режим работы, XXX=i -  номер файла
-        sprintf( filename, "%c_REG%03d.CSV", config.regMode, i );
-        if( !SD.exists(filename) ) 
-        {
-            // Файл с таким именем еще не существует, используем его
-            break;
-        }
-    }
-    if( i == FILE_NUMBER_MAX ) 
-    {
-        display_error(ERROR_FILE_NUMBER);
-    }
-    led_on(LED_REC, INFINITE_CYCLES);
-    File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-    if( myFile ) {
-        myFile.print( "File: " );
-        myFile.print( filename );
-        // myFile.print( "\nsizeof(content): " );
-        // itoa( sizeof(content), log_str, 10 );
-        // myFile.print( log_str );
-        // myFile.print( "\n" );
-        switch( config.regMode ) {
-            case I_MODE: 
-                myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); 
-                break;
-            case U_MODE:
-            default: 
-                myFile.print( "Unix time,Date,Time,-U,+U,-K,+K,-R,+R\n" ); 
-                break;
-        }
-        myFile.close();   // Закрываем файл
-    }
-}
-
 
 // -------------------------------------------------------------------------------------------------------------
 // Функция вызывается постоянно во время работы МК
 // -------------------------------------------------------------------------------------------------------------
 void loop() {
-    uint16_t i;
     uint8_t button_set, button_change;
-    
-    uint16_t year  = time_to_set.year();
-    uint8_t month  = time_to_set.month();
-    uint8_t day    = time_to_set.day();
-    uint8_t hour   = time_to_set.hour();
-    uint8_t minute = time_to_set.minute();
-    uint8_t last_hour = hour;
-    uint16_t last_u_val1 = 0;
-    uint16_t last_u_val2 = 0;
 
 #ifndef TEST
     if( time_set_state != TIME_SET_IDLE ) {
+        
+        uint16_t year   = time_to_set.year();
+        uint8_t  month  = time_to_set.month();
+        uint8_t  day    = time_to_set.day();
+        uint8_t  hour   = time_to_set.hour();
+        uint8_t  minute = time_to_set.minute();
         switch ( time_set_state ) {
             case TIME_SET_YEAR:
                 if( blink_time ) {
@@ -546,9 +521,9 @@ void loop() {
                 
             case TIME_SET_HOUR:
                 if( blink_time ) {
-                    uint8_t minute = time_to_set.minute();
+                    uint8_t set_minute = time_to_set.minute();
                     if( blinked ) {
-                        uint16_t digits = ((uint16_t)hour) * 100 + minute;
+                        uint16_t digits = ((uint16_t)hour) * 100 + set_minute;
                         display.showNumberDecEx(digits, DISPLAY_COLON, true, 4, 0);
                     } else {
                         display.clear();
@@ -569,13 +544,13 @@ void loop() {
                 
             case TIME_SET_MINUTE:
                 if( blink_time ) {
-                    uint8_t hour = time_to_set.hour();
+                    uint8_t set_hour = time_to_set.hour();
                     if( blinked ) {
-                        uint16_t digits = ((uint16_t)hour) * 100 + minute;
+                        uint16_t digits = ((uint16_t)set_hour) * 100 + minute;
                         display.showNumberDecEx( digits, DISPLAY_COLON, true, 4, 0 );
                     } else {
                         display.clear();
-                        display.showNumberDecEx( hour, DISPLAY_COLON, true, 2, 0 );
+                        display.showNumberDecEx( set_hour, DISPLAY_COLON, true, 2, 0 );
                     }
                     blink_time = false;
                 }
@@ -601,227 +576,248 @@ void loop() {
                 time_set_state = TIME_SET_IDLE;
         }
         return;
-    }
+    } else {
 #endif
 
-    uint8_t read_len = 0;
-    
-    if( config.regMode == U_MODE ) 
-    {
+        uint16_t last_u_val1 = 0;
+        uint16_t last_u_val2 = 0;
+        uint8_t read_len = 0;
+        uint8_t context_size = 1;
+        
         #define U_CONTENT_SIZE 5
-        read_len = Serial.readBytes( &content.buf[content_byte_index], U_CONTENT_SIZE - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+        #define I_CONTENT_SIZE 2
+
+        switch( config.regMode ) {
+            case U_MODE:    context_size = U_CONTENT_SIZE; break;
+            case I_MODE:    context_size = I_CONTENT_SIZE; break;
+            default:        context_size = 1; break;
+        }
+        
+        // Читаем из порта нужное количество байт или выходим по таймауту
+        read_len = Serial.readBytes( &content.buf[content_byte_index], context_size - content_byte_index );
         //read_len = Serial.readBytes( &content.buf[content_byte_index], 1 ); // Читаем из порта 1 байт или выходим по таймауту
 
-        if( read_len ) {                                            // Если что-то считали из порта
-            led_on(LED_WR, 2);
-            content_byte_index += read_len;                         // Увеличиваем общее количество считанных байт
-            
-            if( content_byte_index == U_CONTENT_SIZE ) {           // Если данные готовы к сохранению
-                content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
-                content.values.val2 = ntohs(content.values.val2);
-    
-                if( content.values.relay&0x20 ) {                   // проверяем, являются ли данные сопротивлением изоляции
-                    content.values.r_val1 = content.values.val1;    // заполняем ячейки сопротивления изоляции
-                    content.values.r_val2 = content.values.val2;
-                    content.values.val1 = last_u_val1;              // запоняем напряжение из предыдущих данных
-                    content.values.val2 = last_u_val2;
-                } else {
-                    last_u_val1 = content.values.val1;
-                    last_u_val2 = content.values.val2;
-                }
 
-                if( !( content.values.val1 >= config.vMax || 
-                       content.values.val1 <= config.vMin ||
-                       content.values.val2 >= config.vMax || 
-                       content.values.val2 <= config.vMin )  )
-                {
-            
-#ifndef TEST
-                    if( sd_rec_enable ) {              // Если разрешена запись на SD карту
-#endif
-                        DateTime now = DateTime( unix_time );
-                        uint8_t hour = now.hour();
-                        if( (
-                                hour == 0 || 
-                                hour == 5 || 
-                                hour == 10 || 
-                                hour == 15 || 
-                                hour == 20
-                            ) && last_hour != hour ) {
-#ifndef TEST
-                            CreateNewFile();
-#endif
-                        }
-                        last_hour = now.hour();
-                        
-#ifndef TEST
-                        File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-                        if( myFile ) 
-                        {
-#endif
-                            char r_str[13] = "";
-                            if( content.values.relay&0x20 ) {
-                                sprintf( 
-                                    r_str,
-                                    ",%d,%d",
-                                    content.values.r_val1,
-                                    content.values.r_val2
-                                );
-                            }
-                            // Сохраняем данные в файл
-                            sprintf( 
-                                log_str, 
-                                "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d%s\n",
-                                unix_time,
-                                now.year(), now.month(), now.day(),
-                                now.hour(), now.minute(), now.second(),
-                                content.values.val1, content.values.val2, 
-                                (content.values.relay&0x01)?1:0, 
-                                (content.values.relay&0x02)?1:0,
-                                r_str 
-                            );
-#ifndef TEST
-                            myFile.print( log_str );
-                            myFile.close();   // Закрываем файл
-                        } 
-                        //led_off(LED_WR);
-                    } 
-#else
-                    Serial.print( log_str );
-#endif
-                }
-                content_byte_index = 0;                             // Переходим в состояние приема первого байта
-            }
-        }
-    } 
-    else 
-    if( config.regMode == I_MODE ) 
-    {
-        #define I_CONTENT_SIZE 2
-        read_len = Serial.readBytes( &content.buf[content_byte_index], I_CONTENT_SIZE - content_byte_index ); // Читаем из порта нужное количество байт или выходим по таймауту
+    #ifndef TEST
+        DateTime now = DateTime( unix_time );
+        uint8_t reg_hour = now.hour();
 
-        if( read_len != 0 ) {
-            switch(content_byte_index) {
-                case 0:
-                    while( read_len && (content.buf[0]&0xF0) != 0 ) {
-                        read_len--;
-                        content.buf[0] = content.buf[1];
-                    }
-                    break;
-                case 1:
-                    break;
-            }
-            content_byte_index += read_len;
-            if( content_byte_index >= I_CONTENT_SIZE ) {
-              
-                content.iVal = ntohs(content.iVal);
-#define IVALUE_MASK 0x7FF
-                if(  sd_rec_enable && 
-                    (content.iVal&IVALUE_MASK) <= config.vMax && 
-                    (content.iVal&IVALUE_MASK) >= config.vMin ) 
-                {              // Если разрешена запись на SD карту
-                    led_on(LED_WR, INFINITE_CYCLES);
-                    
-                    DateTime now = DateTime( unix_time );
-
-#ifndef TEST
-                    File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
-                    if( myFile ) 
-                    {
-#endif
-                        // Сохраняем данные в файл
-                        sprintf( 
-                            log_str, 
-                            "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
-                            unix_time,
-                            now.year(), now.month(), now.day(),
-                            now.hour(), now.minute(), now.second(),
-                            (content.iVal&0x0800)?1000:0, content.iVal&IVALUE_MASK
-                        );
-                        
-#ifndef TEST
-                        myFile.print( log_str );
-                        myFile.close();   // Закрываем файл
-                    }
-                    else
-                    {
-                        display_error(ERROR_WRITE_FILE);
-                    }
-#else
-                        Serial.print( log_str );
-#endif
-
-                    led_off(LED_WR);
-                }
-
-                content_byte_index = 0;
-            }
-        }
-    }
-
-#ifndef TEST
-    if( read_len == 0 )
-    {
-        content_byte_index = 0; // Таймаут! Переходим в состояние приема первого байта
-        //Serial.print(".");
-        
-        // Вывод времени на дислей
-        if ( time_print_time ) {
-            // Время изменилось
-            time_print_time = false;
-            // Готовим массив чисел для вывода времени
-            DateTime now = DateTime(unix_time);
-        
-            uint16_t to_disp = ((uint16_t)now.hour()) * 100 + now.minute();
-            // собственно вывод на дисплей
-            if ( time_print_point == 0 ) {
-                display.showNumberDecEx(to_disp, DISPLAY_COLON, true, 4, 0);
-            } else {
-                display.showNumberDecEx(to_disp, 0, true, 4, 0);
-            }
-        }
-    
-        buttons_process( button_set, button_change );
-    
-        if ( !sd_rec_enable && button_set && button_change ) {
-            // Serial.print("\nTime set mode...\n");
-            time_to_set = DateTime(unix_time);
-            switch_time_state( TIME_SET_YEAR );
-        }
-        else if ( button_set && !button_change ) {
-            // Нажата кнопка Пуск/Стоп
-            sd_rec_enable = !sd_rec_enable;
-            // Serial.print("\nSTART/STOP pressed.\n");
-            if( sd_rec_enable ) 
-            {
+        if( sd_rec_enable ) {              // Если разрешена запись на SD карту
+            if( last_hour != reg_hour &&
+                ( 
+                    reg_hour == 0  || 
+                    reg_hour == 5  || 
+                    reg_hour == 10 || 
+                    reg_hour == 15 || 
+                    reg_hour == 20
+                ) 
+            ) {
                 CreateNewFile();
-                DateTime now = DateTime( unix_time );
-                last_hour = now.hour();
-                last_u_val1 = 0;
-                last_u_val2 = 0;
             }
-            else {
-                led_off(LED_REC);
-            }
-        } 
-        else if ( button_change && !button_set ) {
-            // Serial.print("CHANGE pressed.\n");
-            float ft = Clock.getTemperature();
-            int16_t temperature = ft;
-            uint8_t t_seg[4] = { 0, 0, 0, display.encodeDigit(0xC) };
-            if( temperature < 0 ) {
-                temperature = -temperature;
-                if( temperature < 10 )
-                    t_seg[1] = SEG_MINUS;
-                else
-                    t_seg[0] = SEG_MINUS;
-            }
-            t_seg[2] = display.encodeDigit(temperature%10); 
-            if( temperature >= 10 )
-                t_seg[1] = display.encodeDigit(temperature/10);
-            display.setSegments(t_seg);
+            last_hour = reg_hour;
+        }
+    #endif
 
-            delay(3000);
+        if( read_len ) {                                            // Если что-то считали из порта
+
+            switch( config.regMode ) {
+
+                case U_MODE:
+                
+                    led_on(LED_WR, 2);
+                    content_byte_index += read_len;                         // Увеличиваем общее количество считанных байт
+                    
+                    if( content_byte_index == U_CONTENT_SIZE ) {           // Если данные готовы к сохранению
+                        uint8_t content_hexes[5] = { content.buf[0], content.buf[1], content.buf[2], content.buf[3], content.buf[4] };
+
+                        content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
+                        content.values.val2 = ntohs(content.values.val2);
+            
+                        if( content.values.relay&0x20 ) {                   // проверяем, являются ли данные сопротивлением изоляции
+                            content.values.r_val1 = content.values.val1;    // заполняем ячейки сопротивления изоляции
+                            content.values.r_val2 = content.values.val2;
+                            content.values.val1 = last_u_val1;              // запоняем напряжение из предыдущих данных
+                            content.values.val2 = last_u_val2;
+                        } else {
+                            last_u_val1 = content.values.val1;
+                            last_u_val2 = content.values.val2;
+                        }
+
+                        if( !( content.values.val1 >= config.vMax || 
+                            content.values.val1 <= config.vMin ||
+                            content.values.val2 >= config.vMax || 
+                            content.values.val2 <= config.vMin )  )
+                        {
+                
+    #ifndef TEST
+                            if( sd_rec_enable ) {              // Если разрешена запись на SD карту
+
+                                File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+
+                                if( myFile ) {
+    #endif
+                                    char r_str[13] = "";
+                                    if( content.values.relay&0x20 ) {
+                                        sprintf( 
+                                            r_str,
+                                            ",%d,%d",
+                                            content.values.r_val1,
+                                            content.values.r_val2
+                                        );
+                                    }
+
+                                    // Сохраняем данные в файл
+                                    sprintf( 
+                                        log_str, 
+                                        "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d%s,%02Xh %02Xh %02Xh %02Xh %02Xh\n",
+                                        unix_time, //10
+                                        now.year(), now.month(), now.day(), //11
+                                        now.hour(), now.minute(), now.second(), //9
+                                        content.values.val1, content.values.val2,  //8
+                                        (content.values.relay&0x01)?1:0, //2
+                                        (content.values.relay&0x02)?1:0, //2
+                                        r_str, //8
+                                        content_hexes[0], //14
+                                        content_hexes[1],
+                                        content_hexes[2],
+                                        content_hexes[3],
+                                        content_hexes[4]
+                                    );
+    #ifndef TEST
+                                    myFile.print( log_str );
+                                    myFile.close();   // Закрываем файл
+                                } 
+                                //led_off(LED_WR);
+                            } 
+    #else
+                            Serial.print( log_str );
+    #endif
+                    }
+                    content_byte_index = 0;                             // Переходим в состояние приема первого байта
+                    break;
+                }
+
+
+                case I_MODE:
+        
+                    switch(content_byte_index) {
+                        case 0:
+                            while( read_len && (content.buf[0]&0xF0) != 0 ) {
+                                read_len--;
+                                content.buf[0] = content.buf[1];
+                            }
+                            break;
+                        case 1:
+                            break;
+                    }
+                    content_byte_index += read_len;
+                    if( content_byte_index >= I_CONTENT_SIZE ) {
+                    
+                        content.iVal = ntohs(content.iVal);
+    #define IVALUE_MASK 0x7FF
+                        if(  sd_rec_enable && 
+                            (content.iVal&IVALUE_MASK) <= config.vMax && 
+                            (content.iVal&IVALUE_MASK) >= config.vMin ) 
+                        {              // Если разрешена запись на SD карту
+                            led_on(LED_WR, INFINITE_CYCLES);
+                            
+                            DateTime now = DateTime( unix_time );
+
+    #ifndef TEST
+                            File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
+                            if( myFile ) 
+                            {
+    #endif
+                                // Сохраняем данные в файл
+                                sprintf( 
+                                    log_str, 
+                                    "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
+                                    unix_time,
+                                    now.year(), now.month(), now.day(),
+                                    now.hour(), now.minute(), now.second(),
+                                    (content.iVal&0x0800)?1000:0, content.iVal&IVALUE_MASK
+                                );
+                                
+    #ifndef TEST
+                                myFile.print( log_str );
+                                myFile.close();   // Закрываем файл
+                            }
+                            else
+                            {
+                                display_error(ERROR_WRITE_FILE);
+                            }
+    #else
+                            Serial.print( log_str );
+    #endif
+
+                            led_off(LED_WR);
+                        }
+
+                        content_byte_index = 0;
+                    }
+                    break;
+            }
+        }
+
+    #ifndef TEST
+        else {
+            content_byte_index = 0; // Таймаут! Переходим в состояние приема первого байта
+            
+            // Вывод времени на дислей
+            if ( time_print_time ) {
+                // Время изменилось
+                time_print_time = false;
+                // Готовим число для вывода времени
+                uint16_t to_disp = ((uint16_t)now.hour()) * 100 + now.minute();
+                // собственно вывод на дисплей
+                if ( time_print_point == 0 ) {
+                    display.showNumberDecEx(to_disp, DISPLAY_COLON, true, 4, 0);
+                } else {
+                    display.showNumberDecEx(to_disp, 0, true, 4, 0);
+                }
+            }
+        
+            buttons_process( button_set, button_change );
+        
+            if ( !sd_rec_enable && button_set && button_change ) {
+                // Serial.print("\nTime set mode...\n");
+                time_to_set = DateTime(unix_time);
+                switch_time_state( TIME_SET_YEAR );
+            }
+            else if ( button_set && !button_change ) {
+                // Нажата кнопка Пуск/Стоп
+                sd_rec_enable = !sd_rec_enable;
+                // Serial.print("\nSTART/STOP pressed.\n");
+                if( sd_rec_enable ) 
+                {
+                    CreateNewFile();
+                    last_hour = reg_hour;
+                    last_u_val1 = 0;
+                    last_u_val2 = 0;
+                }
+                else {
+                    led_off(LED_REC);
+                }
+            } 
+            else if ( button_change && !button_set ) {
+                // Serial.print("CHANGE pressed.\n");
+                float ft = Clock.getTemperature();
+                int16_t temperature = ft;
+                uint8_t t_seg[4] = { 0, 0, 0, display.encodeDigit(0xC) };
+                if( temperature < 0 ) {
+                    temperature = -temperature;
+                    if( temperature < 10 )
+                        t_seg[1] = SEG_MINUS;
+                    else
+                        t_seg[0] = SEG_MINUS;
+                }
+                t_seg[2] = display.encodeDigit(temperature%10); 
+                if( temperature >= 10 )
+                    t_seg[1] = display.encodeDigit(temperature/10);
+                display.setSegments(t_seg);
+
+                delay(3000);
+            }
         }
     }
 #endif
