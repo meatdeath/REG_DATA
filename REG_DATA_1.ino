@@ -3,7 +3,7 @@
  * :Author: Vladimir Novac
  * :Email: vladimir.novac.1980@gmail.com
  * :Date created: 26/12/2018
- * :Modified Date: 24/05/2020
+ * :Modified Date: 25/05/2020
  * :License: Public Domain
  ****************************************************************************************************/
 
@@ -100,6 +100,7 @@ const uint8_t seg_digit[] = {
 
 #define SEG_MINUS       SEG_G
 #define SEG_LETTER_r    (SEG_E|SEG_G)
+#define SEG_LETTER_u    (SEG_C|SEG_D|SEG_E)
 #define SEG_LETTER_i    SEG_E
 #define SEG_LETTER_E    seg_digit[0xE]
 #define SEG_LETTER_C    seg_digit[0xC]
@@ -310,9 +311,10 @@ void CreateNewFile(void) {
     if( myFile ) {
         myFile.print( "File: " );
         myFile.print( filename );
+        myFile.print( "\n" );
         switch( config.regMode ) {
             case I_MODE: myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
-            case U_MODE: myFile.print( "Unix time,Date,Time,-U,+U,-K,+K,-R,+R,Hex Dump\n" );  break;
+            case U_MODE: myFile.print( "Unix time,Date,Time,U-,U+,K-,K+,R-,R+,Hex Dump\n" ); break;
             default:     myFile.print( "Error! Unknown mode!\n" );
         }
         myFile.close();   // Закрываем файл
@@ -374,7 +376,7 @@ void setup() {
     display.clear();
     
     uint8_t t_seg[4] = { 
-        (config.regMode==U_MODE)?SEG_LETTER_r:SEG_LETTER_i, 
+       (uint8_t)(config.regMode==U_MODE)?SEG_LETTER_u:SEG_LETTER_i, 
         display.encodeDigit(VERSION[0]-'0'), 
         display.encodeDigit(VERSION[2]-'0'), 
         display.encodeDigit(VERSION[3]-'0') };
@@ -586,7 +588,9 @@ void loop() {
         
         #define U_CONTENT_SIZE  5
         #define I_CONTENT_SIZE  2
-        #define R_FLAG          0x10
+        #define RELAY_1         (1<<0)
+        #define RELAY_2         (1<<1)
+        #define R_FLAG          (1<<4)
 
         switch( config.regMode ) {
             case U_MODE:    context_size = U_CONTENT_SIZE; break;
@@ -644,10 +648,10 @@ void loop() {
                             last_u_val2 = content.values.val2;
                         }
 
-                        if( !( content.values.val1 >= config.vMax || 
-                            content.values.val1 <= config.vMin ||
-                            content.values.val2 >= config.vMax || 
-                            content.values.val2 <= config.vMin )  )
+                        if( content.values.val1 < config.vMax && 
+                            content.values.val1 > config.vMin &&
+                            content.values.val2 < config.vMax && 
+                            content.values.val2 > config.vMin )
                         {
                 
     #ifndef TEST
@@ -657,7 +661,7 @@ void loop() {
 
                                 if( myFile ) {
     #endif
-                                    char r_str[13] = "";
+                                    char r_str[13] = ",,";
                                     if( content.values.relay&R_FLAG ) {
                                         sprintf( 
                                             r_str,
@@ -670,7 +674,7 @@ void loop() {
                                     // Сохраняем данные в файл
                                     sprintf( 
                                         log_str, 
-                                        "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d%s,%02Xh %02Xh %02Xh %02Xh %02Xh\n",
+                                        "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d%s,%02X %02X %02X %02X %02X\n",
                                         unix_time, //10
                                         now.year(), now.month(), now.day(), //11
                                         now.hour(), now.minute(), now.second(), //9
