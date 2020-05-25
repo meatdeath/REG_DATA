@@ -7,11 +7,11 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.59"
+#define VERSION       "1.60"
 
 #define U_MODE 'U'
 #define I_MODE 'I'
-#define DEFAULT_MODE  U_MODE
+#define DEFAULT_MODE  I_MODE
 
 //#define TEST
 
@@ -584,8 +584,9 @@ void loop() {
         uint8_t read_len = 0;
         uint8_t context_size = 1;
         
-        #define U_CONTENT_SIZE 5
-        #define I_CONTENT_SIZE 2
+        #define U_CONTENT_SIZE  5
+        #define I_CONTENT_SIZE  2
+        #define R_FLAG          0x10
 
         switch( config.regMode ) {
             case U_MODE:    context_size = U_CONTENT_SIZE; break;
@@ -633,7 +634,7 @@ void loop() {
                         content.values.val1 = ntohs(content.values.val1);   // Переводим значения из сетевого формата в формат хранения в памяти
                         content.values.val2 = ntohs(content.values.val2);
             
-                        if( content.values.relay&0x20 ) {                   // проверяем, являются ли данные сопротивлением изоляции
+                        if( content.values.relay&R_FLAG ) {                   // проверяем, являются ли данные сопротивлением изоляции
                             content.values.r_val1 = content.values.val1;    // заполняем ячейки сопротивления изоляции
                             content.values.r_val2 = content.values.val2;
                             content.values.val1 = last_u_val1;              // запоняем напряжение из предыдущих данных
@@ -657,7 +658,7 @@ void loop() {
                                 if( myFile ) {
     #endif
                                     char r_str[13] = "";
-                                    if( content.values.relay&0x20 ) {
+                                    if( content.values.relay&R_FLAG ) {
                                         sprintf( 
                                             r_str,
                                             ",%d,%d",
