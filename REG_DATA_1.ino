@@ -3,15 +3,15 @@
  * :Author: Vladimir Novac
  * :Email: vladimir.novac.1980@gmail.com
  * :Date created: 26/12/2018
- * :Modified Date: 25/05/2020
+ * :Modified Date: 26/05/2020
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.60"
+#define VERSION       "1.61"
 
 #define U_MODE 'U'
 #define I_MODE 'I'
-#define DEFAULT_MODE  U_MODE
+#define DEFAULT_MODE  I_MODE
 
 //#define TEST
 
@@ -167,6 +167,8 @@ volatile uint32_t unix_time;
 volatile bool time_print_time;
 volatile bool time_print_point;
 volatile uint8_t led_wr_timer;
+uint16_t last_u_val1;
+uint16_t last_u_val2;
 
 uint8_t last_hour;
 
@@ -452,6 +454,10 @@ void setup() {
 
     // Загрузка конфигурации из файла с SD карты
     // loadConfiguration();
+
+    
+    last_u_val1 = 0;
+    last_u_val2 = 0;
     
     // Инициализация окончена
     Serial.println( "Initialization DONE." );
@@ -583,8 +589,6 @@ void loop() {
     } else {
 #endif
 
-        uint16_t last_u_val1 = 0;
-        uint16_t last_u_val2 = 0;
         uint8_t read_len = 0;
         uint8_t context_size = 1;
         
