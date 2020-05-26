@@ -11,7 +11,7 @@
 
 #define U_MODE 'U'
 #define I_MODE 'I'
-#define DEFAULT_MODE  I_MODE
+#define DEFAULT_MODE  U_MODE
 
 //#define TEST
 
@@ -311,7 +311,9 @@ void CreateNewFile(void) {
     if( myFile ) {
         myFile.print( "File: " );
         myFile.print( filename );
-        myFile.print( "\n" );
+        myFile.print( " (" );
+        myFile.print( VERSION );
+        myFile.print( ")\n" );
         switch( config.regMode ) {
             case I_MODE: myFile.print( "Unix time,Date,Time,Alarm,Current I(A)\n" ); break;
             case U_MODE: myFile.print( "Unix time,Date,Time,U-,U+,K-,K+,R-,R+,Hex Dump\n" ); break;
@@ -679,8 +681,8 @@ void loop() {
                                         now.year(), now.month(), now.day(), //11
                                         now.hour(), now.minute(), now.second(), //9
                                         content.values.val1, content.values.val2,  //8
-                                        (content.values.relay&0x01)?1:0, //2
-                                        (content.values.relay&0x02)?1:0, //2
+                                        (content.values.relay&RELAY_1)?1:0, //2
+                                        (content.values.relay&RELAY_2)?1:0, //2
                                         r_str, //8
                                         content_hexes[0], //14
                                         content_hexes[1],
