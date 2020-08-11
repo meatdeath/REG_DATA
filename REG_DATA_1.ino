@@ -7,11 +7,14 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.61"
+#define VERSION       "1.62"
+
+#define ENCODED_SEGMENT(x)  display.encodeDigit(x-'0')
+
 
 #define U_MODE 'U'
 #define I_MODE 'I'
-#define DEFAULT_MODE  I_MODE
+//#define DEFAULT_MODE  I_MODE
 
 //#define TEST
 
@@ -344,15 +347,12 @@ void setup() {
     buttons_init();                             // Инициализация пинов кнопок
 
     // Режим работы по умолчанию
-    config.regMode = DEFAULT_MODE;
+    //config.regMode = DEFAULT_MODE;
     // Если при старте нажата кнопка CHANGE(ИЗМЕНИТЬ), то меняем режим работы устройства
-    if( digitalRead(BUTTON2_PIN) == BUTTON_ACTIVE ) {
-        if( config.regMode == U_MODE ) {
-            config.regMode = I_MODE;
-        }
-        else {
-            config.regMode = U_MODE;
-        }
+    if( analogRead(UI_SWITCH_PIN) > 0x7F ) {
+        config.regMode = I_MODE;
+    } else {
+        config.regMode = U_MODE;
     }
         
     if( config.regMode == I_MODE ) {
@@ -380,10 +380,10 @@ void setup() {
     display.clear();
     
     uint8_t t_seg[4] = { 
-       (uint8_t)(config.regMode==U_MODE)?SEG_LETTER_u:SEG_LETTER_i, 
-        display.encodeDigit(VERSION[0]-'0'), 
-        display.encodeDigit(VERSION[2]-'0'), 
-        display.encodeDigit(VERSION[3]-'0') };
+        (uint8_t)((config.regMode==U_MODE)?SEG_LETTER_u:SEG_LETTER_i), 
+        ENCODED_SEGMENT(VERSION[0]), 
+        ENCODED_SEGMENT(VERSION[2]), 
+        ENCODED_SEGMENT(VERSION[3]) };
     display.setSegments(t_seg);
             
     delay(2000);                                // Задержка в 2 сек для защиты от помех при включении
@@ -468,7 +468,7 @@ void setup() {
 // Функция вызывается постоянно во время работы МК
 // -------------------------------------------------------------------------------------------------------------
 void loop() {
-    uint8_t button_set, button_change;
+    uint8_t button_set, button_change, button_start;
 
 #ifndef TEST
     if( time_set_state != TIME_SET_IDLE ) {
@@ -485,7 +485,7 @@ void loop() {
                     else display.clear();
                     blink_time = false;
                 }
-                buttons_process( button_set, button_change );
+                buttons_process( button_change, button_set, button_start );
                 if( !button_set && button_change ) {
                     //change_time_u16_value( &year, 2000, 2100 );
                     if( year > 1999 && year < 2099 ) year++;
@@ -505,7 +505,7 @@ void loop() {
                     else display.clear();
                     blink_time = false;
                 }
-                buttons_process( button_set, button_change );
+                buttons_process( button_change, button_set, button_start );
                 if( !button_set && button_change ) {
                     change_time_u8_value( &month, 1, 12 );
                     time_to_set = DateTime( time_to_set.year(), month, time_to_set.day(), time_to_set.hour(), time_to_set.minute(), 0 );
@@ -520,7 +520,7 @@ void loop() {
                     else display.clear();
                     blink_time = false;
                 }
-                buttons_process( button_set, button_change );
+                buttons_process( button_change, button_set, button_start );
                 if( !button_set && button_change ) {
                     change_time_u8_value( &day, 1, 31 );
                     time_to_set = DateTime( time_to_set.year(), time_to_set.month(), day, time_to_set.hour(), time_to_set.minute(), 0 );
@@ -541,7 +541,7 @@ void loop() {
                     }
                     blink_time = false;
                 }
-                buttons_process( button_set, button_change );
+                buttons_process( button_change, button_set, button_start );
                 if( !button_set && button_change ) {
                     // change
                     change_time_u8_value( &hour, 0, 23 );
@@ -564,7 +564,7 @@ void loop() {
                     }
                     blink_time = false;
                 }
-                buttons_process( button_set, button_change );
+                buttons_process( button_change, button_set, button_start );
                 if ( !button_set && button_change ) {
                     // change
                     change_time_u8_value( &minute, 0, 59 );
@@ -788,14 +788,14 @@ void loop() {
                 }
             }
         
-            buttons_process( button_set, button_change );
+            buttons_process( button_change, button_set, button_start );
         
-            if ( !sd_rec_enable && button_set && button_change ) {
+            if ( !sd_rec_enable && button_set /*&& button_change*/ ) {
                 // Serial.print("\nTime set mode...\n");
                 time_to_set = DateTime(unix_time);
                 switch_time_state( TIME_SET_YEAR );
             }
-            else if ( button_set && !button_change ) {
+            else if ( button_start /*&& !button_change*/ ) {
                 // Нажата кнопка Пуск/Стоп
                 sd_rec_enable = !sd_rec_enable;
                 // Serial.print("\nSTART/STOP pressed.\n");
@@ -810,7 +810,7 @@ void loop() {
                     led_off(LED_REC);
                 }
             } 
-            else if ( button_change && !button_set ) {
+            else if ( button_change /*&& !button_set*/ ) {
                 // Serial.print("CHANGE pressed.\n");
                 float ft = Clock.getTemperature();
                 int16_t temperature = ft;
