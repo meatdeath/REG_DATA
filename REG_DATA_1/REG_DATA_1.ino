@@ -766,7 +766,6 @@ inline void processDataU(DateTime now)
                 } 
             }
 #endif
-            Serial.print( log_str );
         }
         content_byte_index = 0;                             // Переходим в состояние приема первого байта
     }
