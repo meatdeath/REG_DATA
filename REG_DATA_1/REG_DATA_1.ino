@@ -305,6 +305,13 @@ void display_error(uint8_t err_code) {
 }
 #endif
 
+void printHex(Print &p, uint32_t val, uint8_t digits) {
+  for (int8_t i = digits - 1; i >= 0; i--) {
+    uint8_t nibble = (val >> (i * 4)) & 0x0F;
+    p.print(nibble, HEX);
+  }
+}
+
 void CreateNewFile(void) {
     int i;
     for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
@@ -733,11 +740,11 @@ inline void processDataU(DateTime now)
                     Serial.print( (content.values.relay&RELAY_2)?1:0 );      Serial.print( SEPARATOR );
                     if( content.values.relay&R_FLAG ) Serial.print( content.values.r_val1 );    Serial.print( SEPARATOR );
                     if( content.values.relay&R_FLAG ) Serial.print( content.values.r_val2 );    Serial.print( SEPARATOR );
-                    Serial.print( content_hexes[0], HEX );
-                    Serial.print( content_hexes[1], HEX );
-                    Serial.print( content_hexes[2], HEX );
-                    Serial.print( content_hexes[3], HEX );
-                    Serial.print( content_hexes[4], HEX );
+                    printHex(Serial, content_hexes[0], 2);
+                    printHex(Serial, content_hexes[1], 2);
+                    printHex(Serial, content_hexes[2], 2);
+                    printHex(Serial, content_hexes[3], 2);
+                    printHex(Serial, content_hexes[4], 2);
                     Serial.print( F("\n") );
 
 
@@ -755,11 +762,11 @@ inline void processDataU(DateTime now)
                     myFile.print( (content.values.relay&RELAY_2)?1:0 );      myFile.print( SEPARATOR );
                     if( content.values.relay&R_FLAG ) myFile.print( content.values.r_val1 );    myFile.print( SEPARATOR );
                     if( content.values.relay&R_FLAG ) myFile.print( content.values.r_val2 );    myFile.print( SEPARATOR );
-                    myFile.print( content_hexes[0], HEX );
-                    myFile.print( content_hexes[1], HEX );
-                    myFile.print( content_hexes[2], HEX );
-                    myFile.print( content_hexes[3], HEX );
-                    myFile.print( content_hexes[4], HEX );
+                    printHex(myFile, content_hexes[0], 2);
+                    printHex(myFile, content_hexes[1], 2);
+                    printHex(myFile, content_hexes[2], 2);
+                    printHex(myFile, content_hexes[3], 2);
+                    printHex(myFile, content_hexes[4], 2);
                     myFile.print( F("\n") );
 
                     myFile.close();   // Закрываем файл
@@ -791,6 +798,7 @@ inline void processDataI(DateTime now)
     // Все собрали?
     if( content_byte_index >= I_CONTENT_SIZE ) 
     {
+        uint8_t content_hexes[5] = { content.buf[0], content.buf[1] };
         led_on(LED_WR, 2);
 
         content.iVal = ntohs(content.iVal);
@@ -814,8 +822,8 @@ inline void processDataI(DateTime now)
                 Serial.print( now.second() );   Serial.print( SEPARATOR );
                 Serial.print( (content.iVal&0x0800)?1000:0 );   Serial.print( SEPARATOR );
                 Serial.print( content.iVal&IVALUE_MASK );       Serial.print( SEPARATOR );
-                Serial.print( content.buf[0], HEX );
-                Serial.print( content.buf[1], HEX );
+                printHex(Serial, content_hexes[0], 2);
+                printHex(Serial, content_hexes[1], 2);
                 Serial.print( F("\n") );
                 
 #ifndef TEST
@@ -828,8 +836,8 @@ inline void processDataI(DateTime now)
                 myFile.print( now.second() );   myFile.print( SEPARATOR );
                 myFile.print( (content.iVal&0x0800)?1000:0 );   myFile.print( SEPARATOR );
                 myFile.print( content.iVal&IVALUE_MASK );       myFile.print( SEPARATOR );
-                myFile.print( content.buf[0], HEX );
-                myFile.print( content.buf[1], HEX );
+                printHex(myFile, content_hexes[0], 2);
+                printHex(myFile, content_hexes[1], 2);
                 myFile.print( F("\n") );
                 myFile.close();   // Закрываем файл
             }
