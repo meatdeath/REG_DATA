@@ -2,3 +2,4 @@
 REG_DATA_1.ino.eightanaloginputs.hex
 REG_DATA_1.ino.with_bootloader.eightanaloginputs.hex
 .pio
+build

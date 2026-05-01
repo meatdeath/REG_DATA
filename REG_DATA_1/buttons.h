@@ -1,7 +1,7 @@
 #ifndef BUTTONS_H_
 #define BUTTONS_H_
 
-#define UI_SWITCH_PIN           0   // A9
+#define UI_SWITCH_PIN           0   // A0
 #define S1_CHANGE_BUTTON_PIN    9   // D9
 #define S2_SET_BUTTON_PIN       5   // D5
 #define START_BUTTON_PIN        6   // D6
