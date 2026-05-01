@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.62"
+#define VERSION       "1.63"
 
 #define ENCODED_SEGMENT(x)  display.encodeDigit(x-'0')
 
@@ -17,6 +17,7 @@
 //#define DEFAULT_MODE  I_MODE
 
 //#define TEST
+//#define TEST_NO_SD
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -95,7 +96,7 @@ const uint8_t seg_digit[] = {
     (SEG_A|SEG_B|SEG_C|SEG_D|      SEG_F|SEG_G),  // 9
     (SEG_A|SEG_B|SEG_C|      SEG_E|SEG_F|SEG_G),  // A
     (            SEG_C|SEG_D|SEG_E|SEG_F|SEG_G),  // b
-    (SEG_A|            SEG_D|SEG_E            ),  // C
+    (SEG_A|            SEG_D|SEG_E|SEG_F      ),  // C
     (      SEG_B|SEG_C|SEG_D|SEG_E|      SEG_G),  // d
     (SEG_A|            SEG_D|SEG_E|SEG_F|SEG_G),  // E
     (SEG_A|                  SEG_E|SEG_F|SEG_G),  // E
@@ -179,7 +180,7 @@ uint8_t last_hour;
 TM1637Display display(DISPLAY_CLK, DISPLAY_DIO);
 #endif
 
-char log_str[65];
+char log_str[80];
 
 struct config_st {
     char regMode;
@@ -194,7 +195,7 @@ config_st config;                         // <- global configuration object
 //----------------------------------------------------------------------------------------------------
 
 // Настройка таймера для моргания в режиме установки времени
-void blink_timer_start( void ) {
+inline void blink_timer_start( void ) {
     blink_time = true;
     blinked = true;
     Timer1.initialize( 250000 ); // Период Т=250ms
@@ -224,7 +225,7 @@ void sqw_isr( void ) {
 }
 
 // Изменение двухбайтового параметра даты/времени
-void change_time_u16_value( uint16_t *value, uint16_t min, uint16_t max ) {
+inline void change_time_u16_value( uint16_t *value, uint16_t min, uint16_t max ) {
     if( *value >= min && *value < max ) (*value)++;
     else *value = min;
     Timer1.start();
@@ -233,7 +234,7 @@ void change_time_u16_value( uint16_t *value, uint16_t min, uint16_t max ) {
 }
 
 // Изменение обнобайтового параметра даты/времени
-void change_time_u8_value( uint8_t *value, uint8_t min, uint8_t max ) {
+inline void change_time_u8_value( uint8_t *value, uint8_t min, uint8_t max ) {
     if( *value >= min && *value < max ) (*value)++;
     else *value = min;
     Timer1.start();
@@ -242,7 +243,7 @@ void change_time_u8_value( uint8_t *value, uint8_t min, uint8_t max ) {
 }
 
 // Смена изменяемого параметра даты/времени
-void switch_time_state( uint8_t new_state ) {
+inline void switch_time_state( uint8_t new_state ) {
     time_set_state = new_state;
     Timer1.start();
     blink_time = true;
@@ -259,7 +260,13 @@ void fileDateTimeCb(uint16_t* date, uint16_t* time) {
     *time = FAT_TIME( now.hour(), now.minute(), now.second() );
 }
 
-void display_error(uint8_t err_code) {
+inline void display_recording()
+{
+    uint8_t t_seg[4] = { SEG_LETTER_r, SEG_LETTER_E, SEG_LETTER_C , 0 };
+    display.setSegments(t_seg);
+}
+
+inline void display_error(uint8_t err_code) {
     uint16_t led_delay = 100;
     uint8_t t_seg[4] = { SEG_LETTER_E, SEG_LETTER_r, SEG_LETTER_r , 0 };
     switch(err_code) {
@@ -295,7 +302,7 @@ void display_error(uint8_t err_code) {
 }
 #endif
 
-void CreateNewFile(void) {
+inline void CreateNewFile(void) {
     int i;
     for( i = 0; i < FILE_NUMBER_MAX; i++ ) 
     {
@@ -311,6 +318,12 @@ void CreateNewFile(void) {
     {
         display_error(ERROR_FILE_NUMBER);
     }
+    
+#ifdef TEST
+    Serial.print("Creating file ");
+    Serial.print(filename);
+    Serial.print("...");
+#endif
     led_on(LED_REC, INFINITE_CYCLES);
     File myFile = SD.open( filename, FILE_WRITE );           // Открываем файл для записи (данные будут записываться в конец файла)
     if( myFile ) {
@@ -325,7 +338,13 @@ void CreateNewFile(void) {
             default:     myFile.print( "Error! Unknown mode!\n" );
         }
         myFile.close();   // Закрываем файл
+#ifdef TEST
+        Serial.print("OK");
+#endif
     }
+#ifdef TEST
+    Serial.println();
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------------------
@@ -333,6 +352,18 @@ void CreateNewFile(void) {
 // -------------------------------------------------------------------------------------------------------------
 
 void setup() {
+  
+    // Инициализация UART: скорость передачи данных 115200 бод
+    Serial.begin( 115200 );
+    // Таймаут приема данных функцией Serial.readBytes() настраиваем на 0.1 сек
+    Serial.setTimeout( 100 );
+    // Печатаем в UART о том, что начали работать
+    
+#ifdef TEST
+    sprintf( log_str, "Starting (version %s)...\n", VERSION );
+    Serial.print(log_str);
+#endif
+
     content.values.val1 = 0;                    // Очищаем содержимое всех значений
     content.values.val2 = 0;
     content_byte_index = 0;                     // Начинаем с приема первого байта
@@ -351,8 +382,10 @@ void setup() {
     // Если при старте нажата кнопка CHANGE(ИЗМЕНИТЬ), то меняем режим работы устройства
     if( analogRead(UI_SWITCH_PIN) > 0x7F ) {
         config.regMode = I_MODE;
+        //Serial.print("CURRENT mode");
     } else {
         config.regMode = U_MODE;
+        //Serial.print("RESISTANCE mode");
     }
         
     if( config.regMode == I_MODE ) {
@@ -364,14 +397,6 @@ void setup() {
     }
 
     //delay(1000);
-  
-    // Инициализация UART: скорость передачи данных 115200 бод
-    Serial.begin( 115200 );
-    // Таймаут приема данных функцией Serial.readBytes() настраиваем на 0.1 сек
-    Serial.setTimeout( 100 );
-    // Печатаем в UART о том, что начали работать
-    sprintf( log_str, "Starting (version %s)...\n", VERSION );
-    Serial.print(log_str);
     
     // Установка яркости дисплея
     display.setBrightness(0x0F);
@@ -390,6 +415,7 @@ void setup() {
 
 #ifndef TEST
   
+    //Serial.println( "Display initialized" );
     // Очистка дисплея
     display.clear();
     
@@ -397,6 +423,8 @@ void setup() {
     time_print_point = true;  // время отображать двоеточие
   
 #ifndef TEST_NO_SD
+
+    //Serial.println( "Init SD card and File system" );
     // Задать функцию-колбэк для правильной даты создания/изменения файлов
     SdFile::dateTimeCallback( fileDateTimeCb );
   
@@ -409,6 +437,7 @@ void setup() {
       display_error(ERROR_INIT_SD_ERR);
     }
 #endif
+    //Serial.println( "SD card and FileSystem initialized" );
 
 #endif
   
@@ -422,6 +451,8 @@ void setup() {
     unix_time = 1548294223; 
     
 #ifndef TEST
+
+    //Serial.println( "Initialize DS3231 module" );
     // Инициализация шины I2C
     Wire.begin();
     
@@ -446,11 +477,16 @@ void setup() {
 //    }
 #endif
 
+    //Serial.println( "DS3231 initialized" );
+
     // автостарт записи
+    //Serial.println( "Start recording..." );
     sd_rec_enable = true;
     CreateNewFile();
+    display_recording();
     DateTime now = DateTime( unix_time );
     last_hour = now.hour();
+    //Serial.println( "Recording started" );
 
     // Загрузка конфигурации из файла с SD карты
     // loadConfiguration();
@@ -460,7 +496,7 @@ void setup() {
     last_u_val2 = 0;
     
     // Инициализация окончена
-    Serial.println( "Initialization DONE." );
+    //Serial.println( "Initialization DONE." );
 }
 
 
@@ -630,12 +666,11 @@ void loop() {
     #endif
 
         if( read_len ) {                                            // Если что-то считали из порта
-
             switch( config.regMode ) {
 
                 case U_MODE:
+//Serial.println("R Data received.");
                 
-                    led_on(LED_WR, 2);
                     content_byte_index += read_len;                         // Увеличиваем общее количество считанных байт
                     
                     if( content_byte_index == U_CONTENT_SIZE ) {           // Если данные готовы к сохранению
@@ -660,6 +695,7 @@ void loop() {
                             content.values.val2 > config.vMin )
                         {
                 
+                            led_on(LED_WR, 2);
     #ifndef TEST
                             if( sd_rec_enable ) {              // Если разрешена запись на SD карту
 
@@ -698,11 +734,11 @@ void loop() {
                                     myFile.print( log_str );
                                     myFile.close();   // Закрываем файл
                                 } 
-                                //led_off(LED_WR);
                             } 
-    #else
-                            Serial.print( log_str );
+                            led_off(LED_WR);
     #endif
+                        //Serial.print( log_str );
+   
                     }
                     content_byte_index = 0;                             // Переходим в состояние приема первого байта
                     break;
