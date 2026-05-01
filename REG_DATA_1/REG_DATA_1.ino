@@ -7,7 +7,7 @@
  * :License: Public Domain
  ****************************************************************************************************/
 
-#define VERSION       "1.63"
+#define VERSION       "1.64"
 
 #define ENCODED_SEGMENT(x)  display.encodeDigit(x-'0')
 
@@ -71,7 +71,10 @@
 #define led_on(pin, cycles) do {digitalWrite(pin, HIGH); led_wr_timer = cycles;} while(0)    // Зажечь LED (HIGH is the voltage level) на cycles циклов таймера 1
 
 
-#define DISPLAY_COLON   0xE0
+
+//----------------------------------------------------------------------------------------------------
+// Константы
+//----------------------------------------------------------------------------------------------------
 
 // Для дисплея
 //     A
@@ -81,6 +84,7 @@
 // E |   | C
 //    --- 
 //     D
+
 
 const uint8_t seg_digit[] = {
     (SEG_A|SEG_B|SEG_C|SEG_D|SEG_E|SEG_F      ),  // 0
@@ -98,7 +102,7 @@ const uint8_t seg_digit[] = {
     (SEG_A|            SEG_D|SEG_E            ),  // C
     (      SEG_B|SEG_C|SEG_D|SEG_E|      SEG_G),  // d
     (SEG_A|            SEG_D|SEG_E|SEG_F|SEG_G),  // E
-    (SEG_A|                  SEG_E|SEG_F|SEG_G),  // E
+    (SEG_A|                  SEG_E|SEG_F|SEG_G),  // F
 };
 
 #define SEG_MINUS       SEG_G
@@ -107,6 +111,7 @@ const uint8_t seg_digit[] = {
 #define SEG_LETTER_i    SEG_E
 #define SEG_LETTER_E    seg_digit[0xE]
 #define SEG_LETTER_C    seg_digit[0xC]
+#define DISPLAY_COLON   0xE0
 
 enum _enDisplayErrors {
     ERROR_INIT_SD_ERR = 0,
@@ -115,11 +120,6 @@ enum _enDisplayErrors {
     ERROR_WRITE_FILE,
     ERROR_MAX // maximum 9 supported
 };
-
-
-//----------------------------------------------------------------------------------------------------
-// Константы
-//----------------------------------------------------------------------------------------------------
 
 // Состояние редактора часов
 enum time_set_en {
@@ -137,6 +137,9 @@ enum time_set_en {
 #define RELAY_2         (1<<1)
 #define R_FLAG          (1<<4)
 #define IVALUE_MASK     0x7FF
+#define SEPARATOR       F(", ")
+#define SLASH           F("/")
+#define COLON           F(":")
 
 //----------------------------------------------------------------------------------------------------
 // Структуры данных
@@ -187,8 +190,6 @@ uint8_t context_size = 1;
 #ifndef TEST
 TM1637Display display(DISPLAY_CLK, DISPLAY_DIO);
 #endif
-
-char log_str[65];
 
 struct config_st {
     char regMode;
@@ -383,7 +384,7 @@ void setup() {
     Serial.println(F("... "));
 
     //delay(1000);
-    Serial.print("Init display... ");
+    Serial.print(F("Init display... "));
     // Установка яркости дисплея
     display.setBrightness(0x0F);
     
@@ -403,7 +404,7 @@ void setup() {
   
     // Очистка дисплея
     display.clear();
-    Serial.println("OK");
+    Serial.println(F("OK"));
     
     time_print_time = true;   // пришло время отобразить время на дислее
     time_print_point = true;  // время отображать двоеточие
@@ -719,35 +720,48 @@ inline void processDataU(DateTime now)
 
                 if( myFile ) {
 #endif
-                    char r_str[13] = ",,";
-                    if( content.values.relay&R_FLAG ) {
-                        sprintf( 
-                            r_str,
-                            ",%d,%d",
-                            content.values.r_val1,
-                            content.values.r_val2
-                        );
-                    }
+                    Serial.print( unix_time );      Serial.print( SEPARATOR );
+                    Serial.print( now.year() );     Serial.print( SLASH );
+                    Serial.print( now.month() );    Serial.print( SLASH );
+                    Serial.print( now.day() );      Serial.print( SEPARATOR );
+                    Serial.print( now.hour() );     Serial.print( COLON );
+                    Serial.print( now.minute() );   Serial.print( COLON );
+                    Serial.print( now.second() );   Serial.print( SEPARATOR );
+                    Serial.print( content.values.val1 );        Serial.print( SEPARATOR );
+                    Serial.print( content.values.val2 );        Serial.print( SEPARATOR );
+                    Serial.print( (content.values.relay&RELAY_1)?1:0 );      Serial.print( SEPARATOR );
+                    Serial.print( (content.values.relay&RELAY_2)?1:0 );      Serial.print( SEPARATOR );
+                    if( content.values.relay&R_FLAG ) Serial.print( content.values.r_val1 );    Serial.print( SEPARATOR );
+                    if( content.values.relay&R_FLAG ) Serial.print( content.values.r_val2 );    Serial.print( SEPARATOR );
+                    Serial.print( content_hexes[0], HEX );
+                    Serial.print( content_hexes[1], HEX );
+                    Serial.print( content_hexes[2], HEX );
+                    Serial.print( content_hexes[3], HEX );
+                    Serial.print( content_hexes[4], HEX );
+                    Serial.print( F("\n") );
 
-                    // Сохраняем данные в файл
-                    sprintf( 
-                        log_str, 
-                        "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d,%d,%d%s,%02X %02X %02X %02X %02X\n",
-                        unix_time, //10
-                        now.year(), now.month(), now.day(), //11
-                        now.hour(), now.minute(), now.second(), //9
-                        content.values.val1, content.values.val2,  //8
-                        (content.values.relay&RELAY_1)?1:0, //2
-                        (content.values.relay&RELAY_2)?1:0, //2
-                        r_str, //8
-                        content_hexes[0], //14
-                        content_hexes[1],
-                        content_hexes[2],
-                        content_hexes[3],
-                        content_hexes[4]
-                    );
+
 #ifndef TEST
-                    myFile.print( log_str );
+                    myFile.print( unix_time );      myFile.print( SEPARATOR );
+                    myFile.print( now.year() );     myFile.print( SLASH );
+                    myFile.print( now.month() );    myFile.print( SLASH );
+                    myFile.print( now.day() );      myFile.print( SEPARATOR );
+                    myFile.print( now.hour() );     myFile.print( COLON );
+                    myFile.print( now.minute() );   myFile.print( COLON );
+                    myFile.print( now.second() );   myFile.print( SEPARATOR );
+                    myFile.print( content.values.val1 );        myFile.print( SEPARATOR );
+                    myFile.print( content.values.val2 );        myFile.print( SEPARATOR );
+                    myFile.print( (content.values.relay&RELAY_1)?1:0 );      myFile.print( SEPARATOR );
+                    myFile.print( (content.values.relay&RELAY_2)?1:0 );      myFile.print( SEPARATOR );
+                    if( content.values.relay&R_FLAG ) myFile.print( content.values.r_val1 );    myFile.print( SEPARATOR );
+                    if( content.values.relay&R_FLAG ) myFile.print( content.values.r_val2 );    myFile.print( SEPARATOR );
+                    myFile.print( content_hexes[0], HEX );
+                    myFile.print( content_hexes[1], HEX );
+                    myFile.print( content_hexes[2], HEX );
+                    myFile.print( content_hexes[3], HEX );
+                    myFile.print( content_hexes[4], HEX );
+                    myFile.print( F("\n") );
+
                     myFile.close();   // Закрываем файл
                 } 
             }
@@ -792,18 +806,32 @@ inline void processDataI(DateTime now)
             if( myFile ) 
             {
 #endif
-                // Сохраняем данные в файл
-                sprintf( 
-                    log_str, 
-                    "%ld,%04d/%02d/%02d,%02d:%02d:%02d,%d,%d\n",
-                    unix_time,
-                    now.year(), now.month(), now.day(),
-                    now.hour(), now.minute(), now.second(),
-                    (content.iVal&0x0800)?1000:0, content.iVal&IVALUE_MASK
-                );
+                Serial.print( unix_time );      Serial.print( SEPARATOR );
+                Serial.print( now.year() );     Serial.print( SLASH );
+                Serial.print( now.month() );    Serial.print( SLASH );
+                Serial.print( now.day() );      Serial.print( SEPARATOR );
+                Serial.print( now.hour() );     Serial.print( COLON );
+                Serial.print( now.minute() );   Serial.print( COLON );
+                Serial.print( now.second() );   Serial.print( SEPARATOR );
+                Serial.print( (content.iVal&0x0800)?1000:0 );   Serial.print( SEPARATOR );
+                Serial.print( content.iVal&IVALUE_MASK );       Serial.print( SEPARATOR );
+                Serial.print( content.buf[0], HEX );
+                Serial.print( content.buf[1], HEX );
+                Serial.print( F("\n") );
                 
 #ifndef TEST
-                myFile.print( log_str );
+                myFile.print( unix_time );      myFile.print( SEPARATOR );
+                myFile.print( now.year() );     myFile.print( SLASH );
+                myFile.print( now.month() );    myFile.print( SLASH );
+                myFile.print( now.day() );      myFile.print( SEPARATOR );
+                myFile.print( now.hour() );     myFile.print( COLON );
+                myFile.print( now.minute() );   myFile.print( COLON );
+                myFile.print( now.second() );   myFile.print( SEPARATOR );
+                myFile.print( (content.iVal&0x0800)?1000:0 );   myFile.print( SEPARATOR );
+                myFile.print( content.iVal&IVALUE_MASK );       myFile.print( SEPARATOR );
+                myFile.print( content.buf[0], HEX );
+                myFile.print( content.buf[1], HEX );
+                myFile.print( F("\n") );
                 myFile.close();   // Закрываем файл
             }
             else
